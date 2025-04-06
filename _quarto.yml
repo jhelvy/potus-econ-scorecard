@@ -29,7 +29,7 @@ website:
 
 format:
   html:
-    theme: flatly
+    theme: morph
     page-layout: full
     toc: false
     compress: true

@@ -2,34 +2,32 @@
 title: "About"
 ---
 
-This application allows you to compare the economic performance under different US presidents using various economic indicators.
+This application allows you to compare different economic indicators under different US presidents.
 
 ## Features
 
 - **Multiple Economic Indicators**: Compare performance using S&P 500, Dow Jones, NASDAQ, Unemployment Rate, and Inflation Rate.
-- **Flexible Reference Points**: Choose between Inauguration Day or Day Before Election as your reference point.
+- **Flexible Reference Points**: Choose between "Inauguration Day" or "Day Before Election" as your reference point.
 - **Party Filtering**: Filter presidents by political party.
 - **Customizable Time Period**: Adjust the number of days to display for comparison.
-- **Interactive Visualization**: Hover over data points for detailed information and download plots or data for further analysis.
 
 ## How It Works
 
-The application fetches historical economic data and calculates performance metrics relative to your chosen reference date. For market indices (S&P 500, Dow Jones, NASDAQ), performance is shown as percent change from the reference date. For economic indicators (Unemployment Rate, Inflation Rate), absolute values are displayed.
+Historical economic data is downloaded daily and stored in the app [GitHub repository](https://github.com/jhelvy/potus-econ-scorecard). The app loads this data and calculates performance metrics relative to your chosen reference date. For market indices (S&P 500, Dow Jones, NASDAQ), performance is shown as percent change from the reference date. For economic indicators (Unemployment Rate, Inflation Rate), absolute values are displayed.
 
 ## Data Sources
 
-- Market data is sourced from Yahoo Finance
-- Presidential information includes inauguration and election dates
+- Market data (S&P 500, Dow Jones, NASDAQ) is sourced from Yahoo Finance
 - Economic indicators are sourced from FRED (Federal Reserve Economic Data)
 
 ## Technology
 
 This application is built using:
 
-- [R Shiny](https://shiny.posit.co/) for the interactive web application
-- [shinylive](https://posit-dev.github.io/r-shinylive/) for browser-based execution without a server
-- [Quarto](https://quarto.org/) for website publishing
-- [plotly](https://plotly.com/r/) for interactive visualizations
+- [R Shiny](https://shiny.posit.co/) for the interactive web application.
+- [shinylive](https://posit-dev.github.io/r-shinylive/) for browser-based execution without a server.
+- [Quarto](https://quarto.org/) for website publishing.
+- [plotly](https://plotly.com/r/) for interactive visualizations.
 
 ## Source Code
 
