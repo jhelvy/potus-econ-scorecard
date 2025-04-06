@@ -1,21 +1,19 @@
 ###############################################
-# Presidential Market Performance Comparison App
-# A Shiny app to compare stock market performance and economic indicators
-# under different US presidential administrations
+# Presidential Economic Tracker
+# A Shiny app to compare economic performance under different US presidents
 ###############################################
 
 # Load required libraries
 library(shiny)
-library(shinydashboard)
 library(ggplot2)
 library(dplyr)
 library(lubridate)
 library(scales)
 library(ggrepel)
-library(DT)
 library(plotly)
 library(tidyr)
-library(htmlwidgets)
+# Use bslib for nicer UI
+library(bslib)
 
 #-------------------------------------------
 # Data Loading and Processing Functions
@@ -211,12 +209,11 @@ process_econ_data <- function(market_data,
 # UI Definition
 #-------------------------------------------
 
-ui <- dashboardPage(
-  dashboardHeader(title = "Presidential Economic Performance"),
+ui <- page_sidebar(
+  title = "Presidential Economic Tracker",
+  theme = bs_theme(bootswatch = "flatly"),
   
-  dashboardSidebar(
-    width = 300,
-    
+  sidebar = sidebar(
     # Index selection
     radioButtons("selected_index", "Select Economic Indicator:",
                  choices = list(
@@ -240,69 +237,32 @@ ui <- dashboardPage(
     sliderInput("time_period", "Days to Display:",
                 min = 10, max = 365*4, value = 100, step = 10),
     
-    # Party filter - moved to top
+    # Party filter
     checkboxGroupInput("party_filter", "Filter by Party:",
                        choices = c("Democratic", "Republican"),
                        selected = c("Democratic", "Republican")),
     
-    # President selection - Select/Deselect buttons at the top
+    # President selection buttons
     tags$div(
-      tags$label("Select Presidents:"),
-      tags$div(
-        style = "display: flex; justify-content: space-between; margin-bottom: 10px;",
-        actionButton("select_all", "Select All", width = "48%", style = "margin-right: 4%;"),
-        actionButton("deselect_all", "Deselect All", width = "48%")
-      )
+      style = "display: flex; justify-content: space-between; margin-bottom: 10px;",
+      actionButton("select_all", "Select All", class = "btn-sm"),
+      actionButton("deselect_all", "Deselect All", class = "btn-sm")
     ),
     
-    # President checkboxes - will be populated dynamically
+    # President checkboxes (dynamic)
     uiOutput("president_selection")
   ),
   
-  dashboardBody(
-    # Initial loading message
-    tags$div(
-      id = "loading-content",
-      tags$h2("Loading economic data..."),
-      tags$p("This may take a moment as the app loads pre-fetched data."),
-      style = "display: none;" # Hidden by default, shown via JS
-    ),
-    
-    # Main content (hidden during loading)
-    tags$div(
-      id = "app-content",
-      fluidRow(
-        box(
-          width = 12,
-          title = "Economic Performance Comparison",
-          status = "primary",
-          solidHeader = TRUE,
-          plotlyOutput("market_plot", height = "600px"),
-          footer = tags$div(
-            style = "display: flex; justify-content: flex-end; padding: 10px;",
-            downloadButton("download_plot", "Download Plot", icon = icon("download")),
-            tags$div(style = "width: 10px;"), # Spacer
-            downloadButton("download_data", "Download Data", icon = icon("table"))
-          )
-        )
-      )
-    ),
-    
-    # Custom JavaScript for loading screen
-    tags$script(HTML("
-      $(document).ready(function() {
-        $('#loading-content').show();
-        $('#app-content').hide();
-        
-        var checkExist = setInterval(function() {
-          if ($('#market_plot').length) {
-            $('#loading-content').hide();
-            $('#app-content').show();
-            clearInterval(checkExist);
-          }
-        }, 100);
-      });
-    "))
+  # Main content
+  card(
+    full_screen = TRUE,
+    card_header("Economic Performance Comparison"),
+    plotlyOutput("economic_plot", height = "600px"),
+    card_footer(
+      class = "d-flex justify-content-end",
+      downloadButton("download_plot", "Download Plot", class = "btn-sm me-2"),
+      downloadButton("download_data", "Download Data", class = "btn-sm")
+    )
   )
 )
 
@@ -315,6 +275,14 @@ server <- function(input, output, session) {
   # Reactive values to store loaded data
   loaded_data <- reactiveVal(NULL)
   
+  # Show loading message
+  showModal(modalDialog(
+    title = "Loading Data",
+    "Loading economic data. This may take a moment...",
+    footer = NULL,
+    easyClose = FALSE
+  ))
+  
   # Load data on startup
   observe({
     # Get data
@@ -323,12 +291,8 @@ server <- function(input, output, session) {
     # Store the data
     loaded_data(data_list)
     
-    # Show notification
-    if (!is.null(data_list$market_data) && length(data_list$market_data) > 0) {
-      showNotification("Economic data loaded successfully!", type = "message")
-    } else {
-      showNotification("Error loading economic data. Please try again later.", type = "error")
-    }
+    # Remove loading message
+    removeModal()
   })
   
   # Dynamic UI for president selection
@@ -344,7 +308,7 @@ server <- function(input, output, session) {
     
     # Return checkbox group input
     checkboxGroupInput("selected_presidents", 
-                       NULL, # No label since we put it above
+                       "Select Presidents:", # Now with a label
                        choices = presidents,
                        selected = tail(presidents, 4)) # Select the last 4 presidents by default
   })
@@ -391,7 +355,7 @@ server <- function(input, output, session) {
   })
   
   # Render the plot
-  output$market_plot <- renderPlotly({
+  output$economic_plot <- renderPlotly({
     # Get processed data
     plot_data <- processed_data()
     
@@ -420,7 +384,7 @@ server <- function(input, output, session) {
       
       # Create base ggplot
       p <- ggplot(plot_data, aes(x = day, y = value, color = party, group = president)) +
-        geom_line(size = 1, alpha = 0.8) +  # Increased opacity since we removed hover effects
+        geom_line(size = 1, alpha = 0.8) +
         geom_point(data = end_points, size = 3) +
         scale_color_manual(values = party_colors) +
         labs(
@@ -488,7 +452,7 @@ server <- function(input, output, session) {
       
       # Create base ggplot
       p <- ggplot(plot_data, aes(x = day, y = percent_change, color = party, group = president)) +
-        geom_line(size = 1, alpha = 0.8) +  # Increased opacity since we removed hover effects
+        geom_line(size = 1, alpha = 0.8) +
         geom_point(data = end_points, size = 3) +
         geom_hline(yintercept = 0, linetype = "dashed", color = "gray50") +
         scale_color_manual(values = party_colors) +
