@@ -1,7 +1,19 @@
-###############################################
-# POTUS Economic Scorecard
-# A Shiny app to compare economic performance under different US presidents
-###############################################
+---
+format: 
+  html:
+    resources: 
+      - shinylive-sw.js
+filters:
+  - shinylive
+---
+
+<center>
+This can take ~30s to load as it runs entirely in your browser...just leave the window open until it loads<br>
+</center>
+
+```{shinylive-r}
+#| standalone: true
+#| viewerHeight: 1100
 
 # Load required libraries
 library(shiny)
@@ -12,7 +24,6 @@ library(scales)
 library(ggrepel)
 library(plotly)
 library(tidyr)
-library(bslib)
 
 #-------------------------------------------
 # Data Loading and Processing Functions
@@ -205,73 +216,62 @@ process_econ_data <- function(market_data,
 }
 
 #-------------------------------------------
-# UI Definition
+# UI Definition - Simplified for shinylive
 #-------------------------------------------
 
-ui <- page_sidebar(
-  title = div(
-    "POTUS Economic Scorecard",
-    # About and source code links
-    span(
-      # style = "margin-left: 20px; font-size: 14px; font-weight: normal;",
-      a(
-        icon("github"), 
-        href = "https://github.com/jhelvy/potus-econ-scorecard", 
-        target = "_blank"
-      )
-    )
-  ),
-  theme = bs_theme(bootswatch = "flatly"),
-  
-  sidebar = sidebar(
-    # Index selection
-    radioButtons("selected_index", "Select Economic Indicator:",
-                 choices = list(
-                   "S&P 500" = "sp500", 
-                   "Dow Jones" = "djia",
-                   "NASDAQ" = "nasdaq",
-                   "Unemployment Rate" = "unemployment",
-                   "Inflation Rate" = "inflation"
-                 ),
-                 selected = "sp500"),
-    
-    # Baseline selection
-    radioButtons("reference_date", "Reference Date:",
-                 choices = list(
-                   "Inauguration Day" = "inauguration", 
-                   "Day Before Election" = "election"
-                 ),
-                 selected = "inauguration"),
-    
-    # Time period selection
-    sliderInput("time_period", "Days to Display:",
-                min = 10, max = 365*4, value = 100, step = 10),
-    
-    # Party filter
-    checkboxGroupInput("party_filter", "Filter by Party:",
-                       choices = c("Democratic", "Republican"),
-                       selected = c("Democratic", "Republican")),
-    
-    # President selection buttons
-    tags$div(
-      style = "display: flex; justify-content: space-between; margin-bottom: 10px;",
-      actionButton("select_all", "Select All", class = "btn-sm"),
-      actionButton("deselect_all", "Deselect All", class = "btn-sm")
+ui <- fluidPage(
+
+  titlePanel(""),
+
+  sidebarLayout(
+    sidebarPanel(
+      # Index selection
+      radioButtons("selected_index", "Select Economic Indicator:",
+                   choices = list(
+                     "S&P 500" = "sp500", 
+                     "Dow Jones" = "djia",
+                     "NASDAQ" = "nasdaq",
+                     "Unemployment Rate" = "unemployment",
+                     "Inflation Rate" = "inflation"
+                   ),
+                   selected = "sp500"),
+      
+      # Baseline selection
+      radioButtons("reference_date", "Reference Date:",
+                   choices = list(
+                     "Inauguration Day" = "inauguration", 
+                     "Day Before Election" = "election"
+                   ),
+                   selected = "inauguration"),
+      
+      # Time period selection
+      sliderInput("time_period", "Days to Display:",
+                  min = 10, max = 365*4, value = 100, step = 10),
+      
+      # Party filter
+      checkboxGroupInput("party_filter", "Filter by Party:",
+                         choices = c("Democratic", "Republican"),
+                         selected = c("Democratic", "Republican")),
+      
+      # President selection buttons
+      div(
+        style = "display: flex; justify-content: space-between; margin-bottom: 10px;",
+        actionButton("select_all", "Select All", class = "btn-sm"),
+        actionButton("deselect_all", "Deselect All", class = "btn-sm")
+      ),
+      
+      # President checkboxes (dynamic)
+      uiOutput("president_selection")
     ),
     
-    # President checkboxes (dynamic)
-    uiOutput("president_selection")
-  ),
-  
-  # Main content
-  card(
-    full_screen = TRUE,
-    card_header("Economic Performance Comparison"),
-    plotlyOutput("economic_plot", height = "600px"),
-    card_footer(
-      class = "d-flex justify-content-end",
-      downloadButton("download_plot", "Download Plot", class = "btn-sm me-2"),
-      downloadButton("download_data", "Download Data", class = "btn-sm")
+    # Main content
+    mainPanel(
+      plotlyOutput("economic_plot", height = "100%"),
+      div(
+        style = "display: flex; justify-content: flex-end; margin-top: 10px;",
+        downloadButton("download_plot", "Download Plot", class = "btn-sm"),
+        downloadButton("download_data", "Download Data", class = "btn-sm")
+      )
     )
   )
 )
@@ -709,5 +709,5 @@ server <- function(input, output, session) {
 #-------------------------------------------
 # Run the application
 #-------------------------------------------
-
-shinyApp(ui = ui, server = server)
+shinyApp(ui, server)
+```

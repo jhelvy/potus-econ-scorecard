@@ -1,0 +1,50 @@
+project:
+  type: website
+  output-dir: _site
+  preview:
+    browser: true
+  render:
+    - "index.qmd"
+    - "about.qmd"
+  resources: 
+    - shinylive-sw.js
+
+website:  
+  repo-url: https://github.com/jhelvy/potus-econ-scorecard
+  repo-actions: [edit, issue]
+  title: "POTUS Economic Scorecard"
+  navbar:
+    search: false
+    left:
+      - text: "Scorecard"
+        file: index.qmd
+      - text: "About"
+        file: about.qmd
+    right: 
+      - icon: github
+        href: https://github.com/jhelvy/potus-econ-scorecard
+  page-footer:
+    center:
+      - text: "Site made with <a href='https://quarto.org/' target='_blank'><img src='https://quarto.org/favicon.png' width=12> quarto</a> and <a href='https://posit-dev.github.io/r-shinylive/' target='_blank'>shinylive</a>"
+
+format:
+  html:
+    theme: flatly
+    page-layout: full
+    toc: false
+    compress: true
+
+execute:
+  freeze: auto
+  cache: true
+
+shinylive:
+  packages:
+    - shiny
+    - ggplot2
+    - dplyr
+    - lubridate
+    - scales
+    - ggrepel
+    - plotly
+    - tidyr
