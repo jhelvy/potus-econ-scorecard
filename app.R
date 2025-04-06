@@ -1,5 +1,5 @@
 ###############################################
-# Presidential Economic Tracker
+# POTUS Economic Scorecard
 # A Shiny app to compare economic performance under different US presidents
 ###############################################
 
@@ -22,8 +22,8 @@ library(bslib)
 # Function to load prepared data
 load_data <- function() {
   # URL for the data files in GitHub
-  market_data_url <- "https://raw.githubusercontent.com/jhelvy/presidential-econ-tracker/refs/heads/main/market_data.csv"
-  presidents_data_url <- "https://raw.githubusercontent.com/jhelvy/presidential-econ-tracker/refs/heads/main/presidents_data.csv"
+  market_data_url <- "https://raw.githubusercontent.com/jhelvy/potus-econ-scorecard/refs/heads/main/market_data.csv"
+  presidents_data_url <- "https://raw.githubusercontent.com/jhelvy/potus-econ-scorecard/refs/heads/main/presidents_data.csv"
   
   # Load data
   tryCatch({
@@ -210,7 +210,7 @@ process_econ_data <- function(market_data,
 #-------------------------------------------
 
 ui <- page_sidebar(
-  title = "Presidential Economic Tracker",
+  title = "POTUS Economic Scorecard",
   theme = bs_theme(bootswatch = "flatly"),
   
   sidebar = sidebar(
