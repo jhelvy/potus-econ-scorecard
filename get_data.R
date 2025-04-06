@@ -63,6 +63,14 @@ market_indices <- data.frame(
   stringsAsFactors = FALSE
 )
 
+# Define FRED economic indicators to fetch
+fred_indicators <- data.frame(
+  symbol = c("UNRATE", "CPIAUCSL"),
+  name = c("Unemployment Rate", "Consumer Price Index"),
+  id = c("unemployment", "inflation"),
+  stringsAsFactors = FALSE
+)
+
 # Function to fetch market data for all indices
 fetch_market_data <- function() {
   # Calculate the earliest date needed
@@ -107,6 +115,66 @@ fetch_market_data <- function() {
   return(all_data)
 }
 
+# Function to fetch data from FRED
+fetch_fred_data <- function() {
+  # Calculate the earliest date needed
+  earliest_date <- min(presidents_data$election_date) - days(30)
+  
+  # Create a list to store market data
+  all_data <- list()
+  
+  # Loop through each FRED indicator
+  for (i in 1:nrow(fred_indicators)) {
+    tryCatch({
+      # Get symbol and ID
+      symbol <- fred_indicators$symbol[i]
+      index_id <- fred_indicators$id[i]
+      index_name <- fred_indicators$name[i]
+      
+      # Fetch data
+      message(paste("Fetching data for", index_name, "from FRED"))
+      getSymbols(symbol, src = "FRED", from = earliest_date, to = Sys.Date() + days(1))
+      
+      # Get the object based on the symbol
+      idx_obj <- get(symbol)
+      
+      # Create data frame
+      idx_data <- data.frame(
+        date = index(idx_obj),
+        value = as.numeric(idx_obj[, 1]),
+        index_id = index_id,
+        index_name = index_name,
+        stringsAsFactors = FALSE
+      )
+      
+      # For CPI, convert to year-over-year percent change (inflation rate)
+      if (index_id == "inflation") {
+        # Calculate year-over-year percent change for CPI
+        idx_data <- idx_data %>%
+          arrange(date) %>%
+          mutate(
+            prior_year_value = lag(value, 12),
+            value = ((value / prior_year_value) - 1) * 100  # YoY percent change
+          ) %>%
+          filter(!is.na(value)) %>%  # Remove first year where we don't have YoY comparison
+          select(-prior_year_value)  # Remove the helper column
+        
+        # Update the index name to clarify it's YoY inflation
+        idx_data$index_name <- "Inflation Rate (YoY)"
+      }
+      
+      # Store in list
+      all_data[[index_id]] <- idx_data
+      
+    }, error = function(e) {
+      warning(paste("Error fetching data for", index_name, ":", e$message))
+      stop(paste("Failed to fetch", index_name, "data from FRED:", e$message))
+    })
+  }
+  
+  return(all_data)
+}
+
 #-------------------------------------------
 # Main Data Collection Process
 #-------------------------------------------
@@ -114,8 +182,12 @@ fetch_market_data <- function() {
 # Fetch all market data
 market_data <- fetch_market_data()
 
-# Create a combined dataset for all indices and dates
-combined_data <- bind_rows(market_data)
+# Fetch all FRED data
+fred_data <- fetch_fred_data()
+
+# Combine all data
+all_data <- c(market_data, fred_data)
+combined_data <- bind_rows(all_data)
 
 # Add metadata about when the data was retrieved
 combined_data$data_retrieved <- Sys.Date()
@@ -123,4 +195,4 @@ combined_data$data_retrieved <- Sys.Date()
 # Save the data to CSV
 write.csv(combined_data, "market_data.csv", row.names = FALSE)
 
-message("Data collection complete. Files saved as market_data.csv and presidents_data.csv")
+message("Data collection complete. Files saved as market_data.csv")
