@@ -12,7 +12,6 @@ library(scales)
 library(ggrepel)
 library(plotly)
 library(tidyr)
-# Use bslib for nicer UI
 library(bslib)
 
 #-------------------------------------------
