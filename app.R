@@ -209,7 +209,18 @@ process_econ_data <- function(market_data,
 #-------------------------------------------
 
 ui <- page_sidebar(
-  title = "POTUS Economic Scorecard",
+  title = div(
+    "POTUS Economic Scorecard",
+    # About and source code links
+    span(
+      # style = "margin-left: 20px; font-size: 14px; font-weight: normal;",
+      a(
+        icon("github"), 
+        href = "https://github.com/jhelvy/potus-econ-scorecard", 
+        target = "_blank"
+      )
+    )
+  ),
   theme = bs_theme(bootswatch = "flatly"),
   
   sidebar = sidebar(
