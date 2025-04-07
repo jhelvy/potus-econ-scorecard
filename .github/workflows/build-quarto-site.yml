@@ -38,22 +38,22 @@ jobs:
         uses: r-lib/actions/setup-r-dependencies@v2
         with:
           packages:
-            - cran::shinylive@0.3.0
-            - any::knitr
-            - any::rmarkdown
-            - any::shiny
-            - any::dplyr
-            - any::ggplot2
-            - any::ggrepel
-            - any::plotly
+            cran::shinylive@0.3.0
+            any::knitr
+            any::rmarkdown
+            any::shiny
+            any::dplyr
+            any::ggplot2
+            any::ggrepel
+            any::plotly
 
-      - name: "Set up Quarto"
+      - name: Set up Quarto
         uses: quarto-dev/quarto-actions/setup@v2
 
-      - name: "Render Quarto Project"
+      - name: Render Quarto Project
         uses: quarto-dev/quarto-actions/render@v2
 
-      - name: "Publish to GitHub Pages"
+      - name: Publish to GitHub Pages
         uses: quarto-dev/quarto-actions/publish@v2
         with:
           target: gh-pages

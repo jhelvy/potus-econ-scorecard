@@ -1,7 +1,7 @@
 
 <!-- README.md is generated from README.Rmd. Please edit that file -->
 
-[![Shinylive](https://img.shields.io/badge/Shinylive-2.0.0-blue)](https://posit.co/blog/shinylive-for-r/)
+[![Shinylive](https://img.shields.io/badge/Shinylive-2.0.0-blue)](https://posit-dev.github.io/r-shinylive/)
 [![GitHub
 stars](https://img.shields.io/github/stars/jhelvy/potus-econ-scorecard?style=social)](https://github.com/jhelvy/potus-econ-scorecard)
 
