@@ -361,6 +361,7 @@ ui &lt;- fluidPage(
       sliderInput("time_period", "Days to Display:",
                   min = 10, max = 365*4, value = 100, step = 10),
       
+      
       # Party filter
       checkboxGroupInput("party_filter", "Filter by Party:",
                          choices = c("Democratic", "Republican"),
@@ -417,6 +418,20 @@ server &lt;- function(input, output, session) {
     
     # Remove loading message
     removeModal()
+  })
+  
+  # Update default days depending on starting reference point
+  observeEvent(input$reference_date, {
+    # Calculate appropriate default days based on reference type
+    default_days &lt;- if (input$reference_date == "inauguration") {
+      100  # Default for inauguration
+    } else {
+      180  # Default for election (includes transition period + first 100 days)
+      # You can adjust this value as needed
+    }
+    
+    # Update the slider with the new default value
+    updateSliderInput(session, "time_period", value = default_days)
   })
   
   # Dynamic UI for president selection - reversed order
