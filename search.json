@@ -4,7 +4,14 @@
     "href": "about.html",
     "title": "About",
     "section": "",
-    "text": "POTUS Economic Scorecard is an interactive Shiny application that allows users to compare economic performance metrics across different presidential administrations. The app provides visual representations of various economic indicators, including:"
+    "text": "POTUS Economic Scorecard is an interactive Shiny application that allows users to compare economic performance metrics across different presidential administrations. The app provides visual representations of various economic indicators, including:\n\nS&P 500\nDow Jones Industrial Average\nNASDAQ\nUnemployment Rate\nInflation Rate"
+  },
+  {
+    "objectID": "about.html#overview",
+    "href": "about.html#overview",
+    "title": "About",
+    "section": "",
+    "text": "POTUS Economic Scorecard is an interactive Shiny application that allows users to compare economic performance metrics across different presidential administrations. The app provides visual representations of various economic indicators, including:\n\nS&P 500\nDow Jones Industrial Average\nNASDAQ\nUnemployment Rate\nInflation Rate"
   },
   {
     "objectID": "about.html#features",
@@ -42,11 +49,18 @@
     "text": "Local Deployment\nTo run the app locally:\n\nClone the repository:\ngit clone https://github.com/jhelvy/potus-econ-scorecard.git\ncd potus-econ-scorecard\nOpen the project in RStudio or run from the R console:\nlibrary(shiny)\nrunApp()"
   },
   {
-    "objectID": "about.html#source-code",
-    "href": "about.html#source-code",
+    "objectID": "about.html#contributing",
+    "href": "about.html#contributing",
     "title": "About",
-    "section": "Source Code",
-    "text": "Source Code\nThe source code for this application is available on GitHub."
+    "section": "Contributing",
+    "text": "Contributing\nContributions are welcome! Please feel free to submit a Pull Request.\n\nFork the repository\nCreate your feature branch (git checkout -b feature/amazing-feature)\nCommit your changes (git commit -m 'Add some amazing feature')\nPush to the branch (git push origin feature/amazing-feature)\nOpen a Pull Request"
+  },
+  {
+    "objectID": "about.html#license",
+    "href": "about.html#license",
+    "title": "About",
+    "section": "License",
+    "text": "License\nThis project is licensed under the MIT License - see the LICENSE file for details."
   },
   {
     "objectID": "index.html",
