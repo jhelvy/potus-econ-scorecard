@@ -29,6 +29,12 @@ economic indicators, including:
 - Unemployment Rate
 - Inflation Rate
 
+The app is a static web page that runs entirely in your web browser
+using [shinylive](https://posit-dev.github.io/r-shinylive/), so it can
+take a bit to load.
+
+The app is best viewed in landscape mode on a mobile device.
+
 ## Features
 
 - **Multiple Economic Indicators**: Compare performance using S&P 500,
