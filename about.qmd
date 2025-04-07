@@ -2,7 +2,13 @@
 title: "About"
 ---
 
-This application allows you to compare different economic indicators under different US presidents.
+POTUS Economic Scorecard is an interactive [Shiny](https://shiny.posit.co/) application that allows users to compare economic performance metrics across different presidential administrations. The app provides visual representations of various economic indicators, including:
+
+- S&P 500
+- Dow Jones Industrial Average
+- NASDAQ
+- Unemployment Rate
+- Inflation Rate
 
 ## Features
 
@@ -10,6 +16,7 @@ This application allows you to compare different economic indicators under diffe
 - **Flexible Reference Points**: Choose between "Inauguration Day" or "Day Before Election" as your reference point.
 - **Party Filtering**: Filter presidents by political party.
 - **Customizable Time Period**: Adjust the number of days to display for comparison.
+- **Data Export**: Download the plot or raw data for your own analysis
 
 ## How It Works
 
@@ -28,6 +35,23 @@ This application is built using:
 - [shinylive](https://posit-dev.github.io/r-shinylive/) for browser-based execution without a server.
 - [Quarto](https://quarto.org/) for website publishing.
 - [plotly](https://plotly.com/r/) for interactive visualizations.
+
+## Local Deployment
+
+To run the app locally:
+
+1. Clone the repository:
+
+   ```bash
+   git clone https://github.com/jhelvy/potus-econ-scorecard.git
+   cd potus-econ-scorecard
+   ```
+
+2. Open the project in RStudio or run from the R console:
+   ```r
+   library(shiny)
+   runApp()
+   ```
 
 ## Source Code
 

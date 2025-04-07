@@ -17,62 +17,44 @@ POTUS Economic Scorecard is an interactive [Shiny](https://shiny.posit.co/) appl
 
 ## Features
 
-- **Multiple Economic Indicators**: Choose from several key economic metrics
-- **Flexible Reference Points**: Compare data from either inauguration day or the day before election
-- **Customizable Time Frame**: Adjust the display period from 10 days to 4 years
-- **Party and President Filtering**: Filter by political party or select specific presidents
-- **Interactive Visualizations**: Powered by Plotly for detailed hover information
+- **Multiple Economic Indicators**: Compare performance using S&P 500, Dow Jones, NASDAQ, Unemployment Rate, and Inflation Rate.
+- **Flexible Reference Points**: Choose between "Inauguration Day" or "Day Before Election" as your reference point.
+- **Party Filtering**: Filter presidents by political party.
+- **Customizable Time Period**: Adjust the number of days to display for comparison.
 - **Data Export**: Download the plot or raw data for your own analysis
 
 ## Usage
 
 Access the app directly at: [https://jhelvy.github.io/potus-econ-scorecard/](https://jhelvy.github.io/potus-econ-scorecard/)
 
-### Interface Overview
+It should look like this:
 
 ![POTUS Economic Scorecard Interface](https://raw.githubusercontent.com/jhelvy/potus-econ-scorecard/main/screenshot.png)
 
-1. **Sidebar Controls**:
-   - Select an economic indicator
-   - Choose a reference date (inauguration or election)
-   - Set the number of days to display
-   - Filter by political party
-   - Select/deselect specific presidents
+## How It Works
 
-2. **Main Panel**:
-   - Interactive plot showing the selected economic indicator over time
-   - Download buttons for both the visualization and underlying data
-
-### Interpreting the Results
-
-- For market indices (S&P 500, Dow Jones, NASDAQ), the y-axis shows percent change from the reference date
-- For economic indicators (Unemployment, Inflation), the y-axis shows absolute values
-- Lines are color-coded by party (blue for Democratic, red for Republican)
-- Each line ends with a label showing the president's name and final value
+Historical economic data is downloaded daily and stored in the app [GitHub repository](https://github.com/jhelvy/potus-econ-scorecard). The app loads this data and calculates performance metrics relative to your chosen reference date. For market indices (S&P 500, Dow Jones, NASDAQ), performance is shown as percent change from the reference date. For economic indicators (Unemployment Rate, Inflation Rate), absolute values are displayed.
 
 ## Data Sources
 
-The app uses two primary datasets:
+- Market data (S&P 500, Dow Jones, NASDAQ) is sourced from Yahoo Finance
+- Economic indicators are sourced from FRED (Federal Reserve Economic Data)
 
-1. **Market Data**: Historical values for economic indicators, sourced from public economic databases
-2. **Presidents Data**: Information about U.S. presidents, including inauguration and election dates
+## Technology
 
-Data is loaded dynamically from the GitHub repository to ensure the latest information is displayed.
+This application is built using:
 
-## Technical Details
+- [R Shiny](https://shiny.posit.co/) for the interactive web application.
+- [shinylive](https://posit-dev.github.io/r-shinylive/) for browser-based execution without a server.
+- [Quarto](https://quarto.org/) for website publishing.
+- [plotly](https://plotly.com/r/) for interactive visualizations.
 
-The application is built with:
-
-- R Shiny for the interactive web framework
-- ggplot2 and Plotly for visualizations
-- dplyr and tidyr for data manipulation
-- Shinylive for browser-based execution without a backend server
-
-## Local Development
+## Local Deployment
 
 To run the app locally:
 
 1. Clone the repository:
+
    ```bash
    git clone https://github.com/jhelvy/potus-econ-scorecard.git
    cd potus-econ-scorecard
@@ -97,9 +79,3 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## Acknowledgments
-
-- Economic data provided by [SOURCE NAME]
-- Presidential data compiled from public records
-- Built with [Shinylive](https://posit.co/blog/shinylive-for-r/)
