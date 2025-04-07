@@ -19,12 +19,8 @@ This can take ~30s to load as it runs entirely in your browser...just leave the 
 library(shiny)
 library(ggplot2)
 library(dplyr)
-library(lubridate)
-library(scales)
 library(ggrepel)
 library(plotly)
-library(tidyr)
-library(DT)
 
 #-------------------------------------------
 # Data Loading and Processing Functions ----
@@ -696,7 +692,7 @@ server <- function(input, output, session) {
     }, height = 500, width = 800, res = 100)  # Increased resolution for better quality
   })
   
-  # Export data handler - fixed to properly export all data
+  # Export data handler - client-side download approach
   observeEvent(input$export_data, {
     req(processed_data())
     export_data <- processed_data() %>%
@@ -705,70 +701,93 @@ server <- function(input, output, session) {
         data_generated = as.character(Sys.Date())
       )
     
-    # Show the data in a modal
-    showModal(
-      modalDialog(
-        title = "Data Table View",
-        size = "l",
-        tags$div(
-          style = "max-height: 600px; overflow-y: auto;",
-          DT::dataTableOutput("export_data_table")
-        ),
-        footer = tagList(
-          modalButton("Close"),
-          # Alternative direct download button for all data
-          downloadButton("direct_csv_download", "Download All Data as CSV")
-        )
-      )
-    )
+    # Create a unique ID for this download
+    download_id <- paste0("download_", round(runif(1, 1, 100000)))
     
-    # Render the data table with explicit export options
-    output$export_data_table <- DT::renderDataTable({
-      DT::datatable(
-        export_data,
-        options = list(
-          pageLength = 25,
-          scrollX = TRUE,
-          dom = 'Bfrtip',
-          buttons = list(
-            list(
-              extend = 'copyHtml5',
-              text = 'Copy All Data',
-              exportOptions = list(modifier = list(page = 'all'))
-            ),
-            list(
-              extend = 'csvHtml5', 
-              text = 'Export All to CSV',
-              exportOptions = list(modifier = list(page = 'all'))
-            ),
-            list(
-              extend = 'excelHtml5',
-              text = 'Export All to Excel',
-              exportOptions = list(modifier = list(page = 'all'))
-            )
-          )
-        ),
-        extensions = c('Buttons'),
-        selection = 'none',
-        filter = 'top',
-        rownames = FALSE
-      )
+    # Convert data to CSV format
+    csv_content <- reactive({
+      # Create the header row
+      headers <- paste(colnames(export_data), collapse = ",")
+      
+      # Create data rows (escaping any commas in string fields)
+      rows <- apply(export_data, 1, function(row) {
+        # Convert row values to character and handle special cases
+        row_vals <- sapply(row, function(val) {
+          if (is.character(val) && grepl(",", val)) {
+            # Wrap strings containing commas in quotes
+            return(paste0('"', val, '"'))
+          } else {
+            return(as.character(val))
+          }
+        })
+        paste(row_vals, collapse = ",")
+      })
+      
+      # Combine header and rows
+      csv_data <- paste(c(headers, rows), collapse = "\n")
+      return(csv_data)
     })
     
-    # Direct CSV download handler as a fallback
-    output$direct_csv_download <- downloadHandler(
-      filename = function() {
-        index_name <- switch(input$selected_index,
-                            "sp500" = "SP500",
-                            "djia" = "DowJones",
-                            "nasdaq" = "NASDAQ",
-                            "unemployment" = "Unemployment",
-                            "inflation" = "Inflation")
-        paste0(index_name, "_data_", Sys.Date(), ".csv")
-      },
-      content = function(file) {
-        write.csv(export_data, file, row.names = FALSE)
-      }
+    # Get index name for the filename
+    index_name <- switch(input$selected_index,
+                       "sp500" = "SP500",
+                       "djia" = "DowJones",
+                       "nasdaq" = "NASDAQ",
+                       "unemployment" = "Unemployment",
+                       "inflation" = "Inflation")
+    
+    filename <- paste0(index_name, "_data_", Sys.Date(), ".csv")
+    
+    # Create modal with preview and client-side download link
+    showModal(
+      modalDialog(
+        title = "Data Export",
+        size = "l",
+        p("The complete dataset is ready for download."),
+        p(paste0("Number of rows in dataset: ", nrow(export_data))),
+        
+        # Display a small preview of the data
+        tags$div(
+          style = "max-height: 300px; overflow-y: auto;",
+          renderTable({
+            head(export_data, 10)  # Show just first 10 rows as preview
+          })
+        ),
+        
+        # Add JavaScript to enable client-side download
+        tags$script(HTML(sprintf(
+          "
+          function downloadCSV() {
+            var csvContent = %s;
+            var blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            var link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.setAttribute('download', '%s');
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+          }
+          ",
+          paste0("document.getElementById('", download_id, "').getAttribute('data-csv')"),
+          filename
+        ))),
+        
+        # Hidden span to store the CSV data
+        tags$span(
+          id = download_id,
+          style = "display: none;",
+          `data-csv` = csv_content()
+        ),
+        
+        footer = tagList(
+          modalButton("Close"),
+          tags$button(
+            "Download Complete Dataset",
+            class = "btn btn-primary",
+            onclick = "downloadCSV()"
+          )
+        )
+      )
     )
   })
 }
