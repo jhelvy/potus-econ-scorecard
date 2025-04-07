@@ -1,0 +1,1328 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.4.550">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+
+<title>POTUS Economic Scorecard</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+</style>
+
+
+<script src="site_libs/quarto-nav/quarto-nav.js"></script>
+<script src="site_libs/quarto-nav/headroom.min.js"></script>
+<script src="site_libs/clipboard/clipboard.min.js"></script>
+<script src="site_libs/quarto-search/autocomplete.umd.js"></script>
+<script src="site_libs/quarto-search/fuse.min.js"></script>
+<script src="site_libs/quarto-search/quarto-search.js"></script>
+<meta name="quarto:offset" content="./">
+<script src="site_libs/quarto-html/quarto.js"></script>
+<script src="site_libs/quarto-html/popper.min.js"></script>
+<script src="site_libs/quarto-html/tippy.umd.min.js"></script>
+<script src="site_libs/quarto-html/anchor.min.js"></script>
+<link href="site_libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="site_libs/bootstrap/bootstrap.min.js"></script>
+<link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="site_libs/bootstrap/bootstrap.min.css" rel="stylesheet" id="quarto-bootstrap" data-mode="light">
+<meta name="shinylive:serviceworker_dir" content=".">
+<script src="site_libs/quarto-contrib/shinylive-0.9.1/shinylive/load-shinylive-sw.js" type="module"></script>
+<script src="site_libs/quarto-contrib/shinylive-0.9.1/shinylive/run-python-blocks.js" type="module"></script>
+<link href="site_libs/quarto-contrib/shinylive-0.9.1/shinylive/shinylive.css" rel="stylesheet">
+<link href="site_libs/quarto-contrib/shinylive-quarto-css/shinylive-quarto.css" rel="stylesheet">
+<script id="quarto-search-options" type="application/json">{
+  "location": "navbar",
+  "copy-button": false,
+  "collapse-after": 3,
+  "panel-placement": "end",
+  "type": "overlay",
+  "limit": 50,
+  "keyboard-shortcut": [
+    "f",
+    "/",
+    "s"
+  ],
+  "show-item-context": false,
+  "language": {
+    "search-no-results-text": "No results",
+    "search-matching-documents-text": "matching documents",
+    "search-copy-link-title": "Copy link to search",
+    "search-hide-matches-text": "Hide additional matches",
+    "search-more-match-text": "more match in this document",
+    "search-more-matches-text": "more matches in this document",
+    "search-clear-button-title": "Clear",
+    "search-text-placeholder": "",
+    "search-detached-cancel-button-title": "Cancel",
+    "search-submit-button-title": "Submit",
+    "search-label": "Search"
+  }
+}</script>
+
+
+</head>
+
+<body class="nav-fixed">
+
+<div id="quarto-search-results"></div>
+  <header id="quarto-header" class="headroom fixed-top">
+    <nav class="navbar navbar-expand-lg " data-bs-theme="dark">
+      <div class="navbar-container container-fluid">
+      <div class="navbar-brand-container mx-auto">
+    <a class="navbar-brand" href="./index.html">
+    <span class="navbar-title">POTUS Economic Scorecard</span>
+    </a>
+  </div>
+            <div id="quarto-search" class="" title="Search"></div>
+          <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarCollapse" aria-controls="navbarCollapse" aria-expanded="false" aria-label="Toggle navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+  <span class="navbar-toggler-icon"></span>
+</button>
+          <div class="collapse navbar-collapse" id="navbarCollapse">
+            <ul class="navbar-nav navbar-nav-scroll me-auto">
+  <li class="nav-item">
+    <a class="nav-link active" href="./index.html" aria-current="page"> 
+<span class="menu-text">Scorecard</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="./about.html"> 
+<span class="menu-text">About</span></a>
+  </li>  
+</ul>
+            <ul class="navbar-nav navbar-nav-scroll ms-auto">
+  <li class="nav-item compact">
+    <a class="nav-link" href="https://github.com/jhelvy/potus-econ-scorecard"> <i class="bi bi-github" role="img">
+</i> 
+<span class="menu-text"></span></a>
+  </li>  
+</ul>
+          </div> <!-- /navcollapse -->
+          <div class="quarto-navbar-tools">
+</div>
+      </div> <!-- /container-fluid -->
+    </nav>
+</header>
+<!-- content -->
+<div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-full page-navbar">
+<!-- sidebar -->
+<!-- margin-sidebar -->
+    
+<!-- main -->
+<main class="content column-page" id="quarto-document-content">
+
+
+
+
+<center>
+This can take ~30s to load as it runs entirely in your browser…just leave the window open until it loads<br>
+</center>
+<pre class="shinylive-r" data-engine="r"><code>#| standalone: true
+#| viewerHeight: 1100
+
+# Load required libraries
+library(shiny)
+library(ggplot2)
+library(dplyr)
+library(ggrepel)
+library(plotly)
+
+#-------------------------------------------
+# Data Loading and Processing Functions ----
+#-------------------------------------------
+
+# Function to load prepared data
+load_data &lt;- function() {
+  # URL for the data files in GitHub
+  market_data_url &lt;- "https://raw.githubusercontent.com/jhelvy/potus-econ-scorecard/refs/heads/main/market_data.csv"
+  presidents_data_url &lt;- "https://raw.githubusercontent.com/jhelvy/potus-econ-scorecard/refs/heads/main/presidents_data.csv"
+  
+  # Load data
+  tryCatch({
+    market_data_raw &lt;- read.csv(market_data_url)
+    presidents_data &lt;- read.csv(presidents_data_url, stringsAsFactors = FALSE)
+    
+    # Convert date column to Date type
+    market_data_raw$date &lt;- as.Date(market_data_raw$date)
+    presidents_data$inauguration_date &lt;- as.Date(presidents_data$inauguration_date)
+    presidents_data$election_date &lt;- as.Date(presidents_data$election_date)
+    
+    # Organize market data by index
+    market_data &lt;- split(market_data_raw, market_data_raw$index_id)
+    
+    return(list(
+      market_data = market_data,
+      presidents_data = presidents_data
+    ))
+  }, error = function(e) {
+    # Return empty data frames if loading fails
+    warning("Error loading data: ", e$message)
+    return(list(
+      market_data = list(),
+      presidents_data = data.frame()
+    ))
+  })
+}
+
+# Function to process market data for selected presidents and reference date
+process_market_data &lt;- function(market_data, 
+                                presidents_data,
+                                selected_index,
+                                selected_presidents,
+                                reference_type,
+                                party_filter,
+                                days_to_show) {
+  
+  # Check if market data is available
+  if (is.null(market_data) || length(market_data) == 0) {
+    return(data.frame())
+  }
+  
+  # Get index data
+  index_data_list &lt;- list(market_data[[selected_index]])
+  names(index_data_list) &lt;- selected_index
+  
+  # Filter presidents by party and selection
+  filtered_presidents &lt;- presidents_data %&gt;%
+    filter(party %in% party_filter, president %in% selected_presidents)
+  
+  # If no presidents selected, return empty dataframe
+  if (nrow(filtered_presidents) == 0) {
+    return(data.frame())
+  }
+  
+  # Process data for each selected president and index
+  result_data &lt;- data.frame()
+  
+  for (pres_i in 1:nrow(filtered_presidents)) {
+    pres_row &lt;- filtered_presidents[pres_i, ]
+    
+    # Determine reference date based on user selection
+    ref_date &lt;- if (reference_type == "inauguration") {
+      pres_row$inauguration_date
+    } else {
+      pres_row$election_date
+    }
+    
+    # Process each index
+    for (idx_id in names(index_data_list)) {
+      index_data &lt;- index_data_list[[idx_id]]
+      
+      # Find closest trading day to reference date
+      closest_ref_date &lt;- index_data %&gt;%
+        filter(date &gt;= ref_date) %&gt;%
+        arrange(date) %&gt;%
+        slice(1) %&gt;%
+        pull(date)
+      
+      if (length(closest_ref_date) == 0) {
+        # Skip if no suitable reference date found
+        next
+      }
+      
+      # Get the reference value
+      ref_value &lt;- index_data %&gt;%
+        filter(date == closest_ref_date) %&gt;%
+        pull(value)
+      
+      # Calculate days from reference and percent change
+      pres_data &lt;- index_data %&gt;%
+        filter(date &gt;= closest_ref_date) %&gt;%
+        mutate(
+          president = pres_row$president,
+          party = pres_row$party,
+          day = as.numeric(difftime(date, closest_ref_date, units = "days")),
+          reference_value = ref_value,
+          percent_change = (value / ref_value - 1) * 100
+        ) %&gt;%
+        filter(day &lt;= days_to_show)
+      
+      result_data &lt;- rbind(result_data, pres_data)
+    }
+  }
+  
+  return(result_data)
+}
+
+# Function to process economic indicator data that shouldn't use percent change
+process_econ_data &lt;- function(market_data, 
+                              presidents_data,
+                              selected_index,
+                              selected_presidents,
+                              reference_type,
+                              party_filter,
+                              days_to_show) {
+  
+  # Check if market data is available
+  if (is.null(market_data) || length(market_data) == 0) {
+    return(data.frame())
+  }
+  
+  # Get index data
+  index_data_list &lt;- list(market_data[[selected_index]])
+  names(index_data_list) &lt;- selected_index
+  
+  # Filter presidents by party and selection
+  filtered_presidents &lt;- presidents_data %&gt;%
+    filter(party %in% party_filter, president %in% selected_presidents)
+  
+  # If no presidents selected, return empty dataframe
+  if (nrow(filtered_presidents) == 0) {
+    return(data.frame())
+  }
+  
+  # Process data for each selected president and index
+  result_data &lt;- data.frame()
+  
+  for (pres_i in 1:nrow(filtered_presidents)) {
+    pres_row &lt;- filtered_presidents[pres_i, ]
+    
+    # Determine reference date based on user selection
+    ref_date &lt;- if (reference_type == "inauguration") {
+      pres_row$inauguration_date
+    } else {
+      pres_row$election_date
+    }
+    
+    # Process each index
+    for (idx_id in names(index_data_list)) {
+      index_data &lt;- index_data_list[[idx_id]]
+      
+      # Find closest day to reference date
+      closest_ref_date &lt;- index_data %&gt;%
+        filter(date &gt;= ref_date) %&gt;%
+        arrange(date) %&gt;%
+        slice(1) %&gt;%
+        pull(date)
+      
+      if (length(closest_ref_date) == 0) {
+        # Skip if no suitable reference date found
+        next
+      }
+      
+      # For economic indicators, we show absolute values (not percent change)
+      pres_data &lt;- index_data %&gt;%
+        filter(date &gt;= closest_ref_date) %&gt;%
+        mutate(
+          president = pres_row$president,
+          party = pres_row$party,
+          day = as.numeric(difftime(date, closest_ref_date, units = "days"))
+        ) %&gt;%
+        filter(day &lt;= days_to_show)
+      
+      result_data &lt;- rbind(result_data, pres_data)
+    }
+  }
+  
+  return(result_data)
+}
+
+#-------------------------------------------
+# UI Definition ----
+#-------------------------------------------
+
+ui &lt;- fluidPage(
+
+  titlePanel(""),
+
+  sidebarLayout(
+    sidebarPanel(
+      # Index selection
+      radioButtons("selected_index", "Select Economic Indicator:",
+                   choices = list(
+                     "S&amp;P 500" = "sp500", 
+                     "Dow Jones" = "djia",
+                     "NASDAQ" = "nasdaq",
+                     "Unemployment Rate" = "unemployment",
+                     "Inflation Rate" = "inflation"
+                   ),
+                   selected = "sp500"),
+      
+      # Baseline selection
+      radioButtons("reference_date", "Reference Date:",
+                   choices = list(
+                     "Inauguration Day" = "inauguration", 
+                     "Day Before Election" = "election"
+                   ),
+                   selected = "inauguration"),
+      
+      # Time period selection
+      sliderInput("time_period", "Days to Display:",
+                  min = 10, max = 365*4, value = 100, step = 10),
+      
+      # Party filter
+      checkboxGroupInput("party_filter", "Filter by Party:",
+                         choices = c("Democratic", "Republican"),
+                         selected = c("Democratic", "Republican")),
+      
+      # President selection buttons
+      div(
+        style = "display: flex; justify-content: space-between; margin-bottom: 10px;",
+        actionButton("select_all", "Select All", class = "btn-sm"),
+        actionButton("deselect_all", "Deselect All", class = "btn-sm")
+      ),
+      
+      # President checkboxes (dynamic)
+      uiOutput("president_selection")
+    ),
+    
+    # Main content
+    mainPanel(
+      plotlyOutput("economic_plot", height = "100%"),
+      div(
+        style = "display: flex; justify-content: flex-end; margin-top: 10px;",
+        actionButton("export_plot", "Export Plot", class = "btn-sm"),
+        actionButton("export_data", "Export Data", class = "btn-sm")
+      ),
+      uiOutput("export_modal")
+    )
+  )
+)
+
+#-------------------------------------------
+# Server Logic ----
+#-------------------------------------------
+
+server &lt;- function(input, output, session) {
+  
+  # Reactive values to store loaded data
+  loaded_data &lt;- reactiveVal(NULL)
+  
+  # Show loading message
+  showModal(modalDialog(
+    title = "Loading Data",
+    "Loading economic data. This may take a moment...",
+    footer = NULL,
+    easyClose = FALSE
+  ))
+  
+  # Load data on startup
+  observe({
+    # Get data
+    data_list &lt;- load_data()
+    
+    # Store the data
+    loaded_data(data_list)
+    
+    # Remove loading message
+    removeModal()
+  })
+  
+  # Dynamic UI for president selection - reversed order
+  output$president_selection &lt;- renderUI({
+    data &lt;- loaded_data()
+    
+    if (is.null(data) || nrow(data$presidents_data) == 0) {
+      return(NULL)
+    }
+    
+    # Get presidents from data and reverse the order
+    presidents &lt;- rev(data$presidents_data$president)
+    
+    # Return checkbox group input with reversed order
+    checkboxGroupInput("selected_presidents", 
+                       "Select Presidents:", 
+                       choices = presidents,
+                       selected = head(presidents, 4)) # Select the first 4 presidents in the reversed list (most recent)
+  })
+  
+  # Process data based on user selections
+  processed_data &lt;- reactive({
+    # Get data
+    data &lt;- loaded_data()
+    
+    # Make sure data is loaded
+    req(data, data$market_data, input$selected_presidents)
+    
+    # Get user selections
+    selected_index &lt;- input$selected_index
+    reference_type &lt;- input$reference_date
+    selected_presidents &lt;- input$selected_presidents
+    party_filter &lt;- input$party_filter
+    days_to_show &lt;- input$time_period
+    
+    # Choose the appropriate processing function based on the selected index
+    if (selected_index %in% c("unemployment", "inflation")) {
+      # For economic indicators, use absolute values
+      return(process_econ_data(
+        data$market_data,
+        data$presidents_data,
+        selected_index,
+        selected_presidents,
+        reference_type,
+        party_filter,
+        days_to_show
+      ))
+    } else {
+      # For market indices, use percent change from reference date
+      return(process_market_data(
+        data$market_data,
+        data$presidents_data,
+        selected_index,
+        selected_presidents,
+        reference_type,
+        party_filter,
+        days_to_show
+      ))
+    }
+  })
+  
+  # Render the plot
+  output$economic_plot &lt;- renderPlotly({
+    # Get processed data
+    plot_data &lt;- processed_data()
+    
+    # Make sure there's data to plot
+    req(nrow(plot_data) &gt; 0)
+    
+    # Reference type for title
+    ref_type &lt;- if (input$reference_date == "inauguration") {
+      "Inauguration Day"
+    } else {
+      "Day Before Election"
+    }
+    
+    # Define party colors
+    party_colors &lt;- c("Democratic" = "blue", "Republican" = "red")
+    
+    if (input$selected_index %in% c("unemployment", "inflation")) {
+      # Plot for economic indicators (absolute values)
+      index_name &lt;- unique(plot_data$index_name)[1]
+      
+      # Get end points for each president
+      end_points &lt;- plot_data %&gt;% 
+        group_by(president, party) %&gt;% 
+        filter(day == max(day)) %&gt;%
+        mutate(label = paste0(president, " (", round(value, 1), ")"))
+      
+      # Create base ggplot with enhanced tooltips
+      p &lt;- ggplot(plot_data, aes(x = day, y = value, color = party, group = president, 
+                                 text = paste0(president, "&lt;br&gt;Day: ", day, "&lt;br&gt;Value: ", round(value, 2)))) +
+        geom_line(size = 1, alpha = 0.8) +
+        geom_point(data = end_points, size = 3) +
+        scale_color_manual(values = party_colors) +
+        labs(
+          title = paste(index_name, "Since", ref_type),
+          subtitle = paste0("Showing first ", input$time_period, " days"),
+          x = paste("Days Since", ref_type),
+          y = index_name,
+          color = "Party"  # Capitalize Party in legend
+        ) +
+        theme_minimal() +
+        theme(
+          plot.title = element_text(face = "bold"),
+          panel.grid.minor = element_blank(),
+          legend.position = "bottom"
+        ) +
+        # Add extra space on right for labels
+        coord_cartesian(xlim = c(0, max(plot_data$day) * 1.3))
+      
+      # For unemployment and inflation, we might want to set y-limits
+      if (input$selected_index == "unemployment") {
+        p &lt;- p + ylim(0, max(plot_data$value) * 1.1)  # Ensure we start at 0 for unemployment
+      }
+      
+      # Convert to plotly
+      p_ly &lt;- ggplotly(p, tooltip = "text") %&gt;%
+        layout(
+          legend = list(orientation = "h", y = -0.2),
+          # Add more space on the right margin for labels
+          margin = list(r = 100)
+        )
+      
+      # Add annotations for each end point
+      for (i in 1:nrow(end_points)) {
+        point &lt;- end_points[i, ]
+        
+        p_ly &lt;- p_ly %&gt;% 
+          add_annotations(
+            x = point$day,
+            y = point$value,
+            text = point$label,
+            showarrow = TRUE,
+            arrowhead = 0,
+            arrowsize = 0.7,
+            arrowwidth = 1,
+            arrowcolor = "gray70",
+            xanchor = "left",
+            yanchor = "middle",
+            textangle = 0,
+            font = list(color = "black", size = 11),
+            ax = 50,
+            ay = 0
+          )
+      }
+      
+      return(p_ly)
+      
+    } else {
+      # Plot for a single market index (percent change)
+      index_name &lt;- unique(plot_data$index_name)[1]
+      
+      # Get end points for each president
+      end_points &lt;- plot_data %&gt;% 
+        group_by(president, party) %&gt;% 
+        filter(day == max(day)) %&gt;%
+        mutate(label = paste0(president, " (", round(percent_change, 1), "%)"))
+      
+      # Create base ggplot with enhanced tooltips
+      p &lt;- ggplot(plot_data, aes(x = day, y = percent_change, color = party, group = president, 
+                                 text = paste0(president, "&lt;br&gt;Day: ", day, "&lt;br&gt;Change: ", round(percent_change, 2), "%"))) +
+        geom_line(size = 1, alpha = 0.8) +
+        geom_point(data = end_points, size = 3) +
+        geom_hline(yintercept = 0, linetype = "dashed", color = "gray50") +
+        scale_color_manual(values = party_colors) +
+        labs(
+          title = paste(index_name, "Performance Since", ref_type),
+          subtitle = paste0("Showing first ", input$time_period, " days (0% = value on reference date)"),
+          x = paste("Days Since", ref_type),
+          y = "Percent Change (%)",
+          color = "Party"  # Capitalize Party in legend
+        ) +
+        theme_minimal() +
+        theme(
+          plot.title = element_text(face = "bold"),
+          panel.grid.minor = element_blank(),
+          legend.position = "bottom"
+        ) +
+        # Add extra space on right for labels
+        coord_cartesian(xlim = c(0, max(plot_data$day) * 1.3))
+      
+      # Convert to plotly
+      p_ly &lt;- ggplotly(p, tooltip = "text") %&gt;%
+        layout(
+          legend = list(orientation = "h", y = -0.2),
+          # Add more space on the right margin for labels
+          margin = list(r = 100)
+        )
+      
+      # Add zero line
+      p_ly &lt;- p_ly %&gt;% 
+        add_segments(x = 0, xend = max(plot_data$day) * 1.3, 
+                     y = 0, yend = 0,
+                     line = list(dash = "dash", color = "gray", width = 1),
+                     showlegend = FALSE, 
+                     hoverinfo = "none")
+      
+      # Add annotations manually for each end point
+      for (i in 1:nrow(end_points)) {
+        point &lt;- end_points[i, ]
+        
+        p_ly &lt;- p_ly %&gt;% 
+          add_annotations(
+            x = point$day,
+            y = point$percent_change,
+            text = point$label,  # Include percentage in label
+            showarrow = TRUE,
+            arrowhead = 0,
+            arrowsize = 0.7,
+            arrowwidth = 1,
+            arrowcolor = "gray70",
+            xanchor = "left",
+            yanchor = "middle",
+            textangle = 0,
+            font = list(color = "black", size = 11),
+            ax = 50,  # Increased offset for better visibility
+            ay = 0
+          )
+      }
+      
+      return(p_ly)
+    }
+  })
+  
+  # Handle select all button
+  observeEvent(input$select_all, {
+    data &lt;- loaded_data()
+    req(data, data$presidents_data)
+    
+    # Get reversed president list to match the UI
+    presidents &lt;- rev(data$presidents_data$president)
+    
+    updateCheckboxGroupInput(session, "selected_presidents",
+                             choices = presidents,
+                             selected = presidents)
+  })
+  
+  # Handle deselect all button
+  observeEvent(input$deselect_all, {
+    data &lt;- loaded_data()
+    req(data, data$presidents_data)
+    
+    # Get reversed president list to match the UI
+    presidents &lt;- rev(data$presidents_data$president)
+    
+    updateCheckboxGroupInput(session, "selected_presidents",
+                             choices = presidents,
+                             selected = character(0))
+  })
+  
+  # Export plot handler - with embedded URL in caption and more right space
+  observeEvent(input$export_plot, {
+    req(processed_data())
+    plot_data &lt;- processed_data()
+    
+    # Reference type for title
+    ref_type &lt;- if (input$reference_date == "inauguration") {
+      "Inauguration Day"
+    } else {
+      "Day Before Election"
+    }
+    
+    # Define party colors
+    party_colors &lt;- c("Democratic" = "blue", "Republican" = "red")
+    
+    # Create a static plot with ggrepel labels for download
+    if (input$selected_index %in% c("unemployment", "inflation")) {
+      # Plot for economic indicators
+      index_name &lt;- unique(plot_data$index_name)[1]
+      
+      # Create end labels data
+      end_labels &lt;- plot_data %&gt;% 
+        group_by(president) %&gt;% 
+        filter(day == max(day)) %&gt;%
+        mutate(label = paste0(president, " (", round(value, 1), ")"))
+      
+      # Create ggplot with embedded URL in caption and more right space
+      p &lt;- ggplot(plot_data, aes(x = day, y = value, color = party, group = president)) +
+        geom_line(size = 1) +
+        geom_point(data = end_labels, size = 3) +
+        # Add end labels
+        geom_text_repel(
+          data = end_labels,
+          aes(label = label),
+          direction = "y",
+          hjust = 0,
+          vjust = 0,
+          nudge_x = 5,
+          force = 3,
+          segment.size = 0.2,
+          box.padding = 0.5,
+          show.legend = FALSE
+        ) +
+        scale_color_manual(values = party_colors) +
+        labs(
+          title = paste(index_name, "Since", ref_type),
+          subtitle = paste0("Showing first ", input$time_period, " days"),
+          x = paste("Days Since", ref_type),
+          y = index_name,
+          caption = paste0("Generated on ", Sys.Date(), " from https://jhelvy.github.io/potus-econ-scorecard/"),
+          color = "Party"
+        ) +
+        theme_minimal() +
+        theme(
+          plot.title = element_text(face = "bold", size = 16),
+          plot.subtitle = element_text(size = 12),
+          panel.grid.minor = element_blank(),
+          legend.position = "bottom",
+          legend.title = element_text(face = "bold"),
+          axis.title = element_text(face = "bold"),
+          plot.caption = element_text(size = 9, hjust = 0)
+        ) +
+        coord_cartesian(xlim = c(0, max(plot_data$day) * 1.3))  # More right space
+      
+      # Set y-limits for unemployment to start at 0
+      if (input$selected_index == "unemployment") {
+        p &lt;- p + ylim(0, max(plot_data$value) * 1.1)
+      }
+    } else {
+      # Plot for a single market index
+      index_name &lt;- unique(plot_data$index_name)[1]
+      
+      # Create end labels data
+      end_labels &lt;- plot_data %&gt;% 
+        group_by(president) %&gt;% 
+        filter(day == max(day)) %&gt;%
+        mutate(label = paste0(president, " (", round(percent_change, 1), "%)"))
+      
+      # Create ggplot with embedded URL in caption and more right space
+      p &lt;- ggplot(plot_data, aes(x = day, y = percent_change, color = party, group = president)) +
+        geom_line(size = 1) +
+        geom_point(data = end_labels, size = 3) +
+        # Add end labels
+        geom_text_repel(
+          data = end_labels,
+          aes(label = label),
+          direction = "y",
+          hjust = 0,
+          vjust = 0,
+          nudge_x = 5,
+          force = 3,
+          segment.size = 0.2,
+          box.padding = 0.5,
+          show.legend = FALSE
+        ) +
+        geom_hline(yintercept = 0, linetype = "dashed", color = "gray50") +
+        scale_color_manual(values = party_colors) +
+        labs(
+          title = paste(index_name, "Performance Since", ref_type),
+          subtitle = paste0("Showing first ", input$time_period, " days (0% = value on reference date)"),
+          x = paste("Days Since", ref_type),
+          y = "Percent Change (%)",
+          caption = paste0("Generated on ", Sys.Date(), " from https://jhelvy.github.io/potus-econ-scorecard/"),
+          color = "Party"
+        ) +
+        theme_minimal() +
+        theme(
+          plot.title = element_text(face = "bold", size = 16),
+          plot.subtitle = element_text(size = 12),
+          panel.grid.minor = element_blank(),
+          legend.position = "bottom",
+          legend.title = element_text(face = "bold"),
+          axis.title = element_text(face = "bold"),
+          plot.caption = element_text(size = 9, hjust = 0)
+        ) +
+        coord_cartesian(xlim = c(0, max(plot_data$day) * 1.3))  # More right space
+    }
+    
+    # Show the plot in a modal with save instructions
+    showModal(
+      modalDialog(
+        title = "Plot Export",
+        size = "l",
+        plotOutput("export_plot_preview", height = "500px"),
+        hr(),
+        tags$div(
+          style = "text-align: center;",
+          tags$p("To save this image, right-click on the plot above and select 'Save image as...'")
+        ),
+        footer = tagList(
+          modalButton("Close")
+        )
+      )
+    )
+    
+    output$export_plot_preview &lt;- renderPlot({
+      p
+    }, height = 500, width = 800, res = 100)  # Increased resolution for better quality
+  })
+  
+  # Export data handler - client-side download approach
+  observeEvent(input$export_data, {
+    req(processed_data())
+    export_data &lt;- processed_data() %&gt;%
+      mutate(
+        reference_type = if(input$reference_date == "inauguration") "Inauguration Day" else "Day Before Election",
+        data_generated = as.character(Sys.Date())
+      )
+    
+    # Create a unique ID for this download
+    download_id &lt;- paste0("download_", round(runif(1, 1, 100000)))
+    
+    # Convert data to CSV format
+    csv_content &lt;- reactive({
+      # Create the header row
+      headers &lt;- paste(colnames(export_data), collapse = ",")
+      
+      # Create data rows (escaping any commas in string fields)
+      rows &lt;- apply(export_data, 1, function(row) {
+        # Convert row values to character and handle special cases
+        row_vals &lt;- sapply(row, function(val) {
+          if (is.character(val) &amp;&amp; grepl(",", val)) {
+            # Wrap strings containing commas in quotes
+            return(paste0('"', val, '"'))
+          } else {
+            return(as.character(val))
+          }
+        })
+        paste(row_vals, collapse = ",")
+      })
+      
+      # Combine header and rows
+      csv_data &lt;- paste(c(headers, rows), collapse = "\n")
+      return(csv_data)
+    })
+    
+    # Get index name for the filename
+    index_name &lt;- switch(input$selected_index,
+                       "sp500" = "SP500",
+                       "djia" = "DowJones",
+                       "nasdaq" = "NASDAQ",
+                       "unemployment" = "Unemployment",
+                       "inflation" = "Inflation")
+    
+    filename &lt;- paste0(index_name, "_data_", Sys.Date(), ".csv")
+    
+    # Create modal with preview and client-side download link
+    showModal(
+      modalDialog(
+        title = "Data Export",
+        size = "l",
+        p("The complete dataset is ready for download."),
+        p(paste0("Number of rows in dataset: ", nrow(export_data))),
+        
+        # Display a small preview of the data
+        tags$div(
+          style = "max-height: 300px; overflow-y: auto;",
+          renderTable({
+            head(export_data, 10)  # Show just first 10 rows as preview
+          })
+        ),
+        
+        # Add JavaScript to enable client-side download
+        tags$script(HTML(sprintf(
+          "
+          function downloadCSV() {
+            var csvContent = %s;
+            var blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            var link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.setAttribute('download', '%s');
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+          }
+          ",
+          paste0("document.getElementById('", download_id, "').getAttribute('data-csv')"),
+          filename
+        ))),
+        
+        # Hidden span to store the CSV data
+        tags$span(
+          id = download_id,
+          style = "display: none;",
+          `data-csv` = csv_content()
+        ),
+        
+        footer = tagList(
+          modalButton("Close"),
+          tags$button(
+            "Download Complete Dataset",
+            class = "btn btn-primary",
+            onclick = "downloadCSV()"
+          )
+        )
+      )
+    )
+  })
+}
+
+#-------------------------------------------
+# Run the application
+#-------------------------------------------
+shinyApp(ui, server)</code></pre>
+
+
+
+</main> <!-- /main -->
+<script id="quarto-html-after-body" type="application/javascript">
+window.document.addEventListener("DOMContentLoaded", function (event) {
+  const toggleBodyColorMode = (bsSheetEl) => {
+    const mode = bsSheetEl.getAttribute("data-mode");
+    const bodyEl = window.document.querySelector("body");
+    if (mode === "dark") {
+      bodyEl.classList.add("quarto-dark");
+      bodyEl.classList.remove("quarto-light");
+    } else {
+      bodyEl.classList.add("quarto-light");
+      bodyEl.classList.remove("quarto-dark");
+    }
+  }
+  const toggleBodyColorPrimary = () => {
+    const bsSheetEl = window.document.querySelector("link#quarto-bootstrap");
+    if (bsSheetEl) {
+      toggleBodyColorMode(bsSheetEl);
+    }
+  }
+  toggleBodyColorPrimary();  
+  const icon = "";
+  const anchorJS = new window.AnchorJS();
+  anchorJS.options = {
+    placement: 'right',
+    icon: icon
+  };
+  anchorJS.add('.anchored');
+  const isCodeAnnotation = (el) => {
+    for (const clz of el.classList) {
+      if (clz.startsWith('code-annotation-')) {                     
+        return true;
+      }
+    }
+    return false;
+  }
+  const clipboard = new window.ClipboardJS('.code-copy-button', {
+    text: function(trigger) {
+      const codeEl = trigger.previousElementSibling.cloneNode(true);
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+    }
+  });
+  clipboard.on('success', function(e) {
+    // button target
+    const button = e.trigger;
+    // don't keep focus
+    button.blur();
+    // flash "checked"
+    button.classList.add('code-copy-button-checked');
+    var currentTitle = button.getAttribute("title");
+    button.setAttribute("title", "Copied!");
+    let tooltip;
+    if (window.bootstrap) {
+      button.setAttribute("data-bs-toggle", "tooltip");
+      button.setAttribute("data-bs-placement", "left");
+      button.setAttribute("data-bs-title", "Copied!");
+      tooltip = new bootstrap.Tooltip(button, 
+        { trigger: "manual", 
+          customClass: "code-copy-button-tooltip",
+          offset: [0, -8]});
+      tooltip.show();    
+    }
+    setTimeout(function() {
+      if (tooltip) {
+        tooltip.hide();
+        button.removeAttribute("data-bs-title");
+        button.removeAttribute("data-bs-toggle");
+        button.removeAttribute("data-bs-placement");
+      }
+      button.setAttribute("title", currentTitle);
+      button.classList.remove('code-copy-button-checked');
+    }, 1000);
+    // clear code selection
+    e.clearSelection();
+  });
+  function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+    const config = {
+      allowHTML: true,
+      maxWidth: 500,
+      delay: 100,
+      arrow: false,
+      appendTo: function(el) {
+          return el.parentElement;
+      },
+      interactive: true,
+      interactiveBorder: 10,
+      theme: 'quarto',
+      placement: 'bottom-start',
+    };
+    if (contentFn) {
+      config.content = contentFn;
+    }
+    if (onTriggerFn) {
+      config.onTrigger = onTriggerFn;
+    }
+    if (onUntriggerFn) {
+      config.onUntrigger = onUntriggerFn;
+    }
+    window.tippy(el, config); 
+  }
+  const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+  for (var i=0; i<noterefs.length; i++) {
+    const ref = noterefs[i];
+    tippyHover(ref, function() {
+      // use id or data attribute instead here
+      let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+      try { href = new URL(href).hash; } catch {}
+      const id = href.replace(/^#\/?/, "");
+      const note = window.document.getElementById(id);
+      return note.innerHTML;
+    });
+  }
+  const xrefs = window.document.querySelectorAll('a.quarto-xref');
+  const processXRef = (id, note) => {
+    // Strip column container classes
+    const stripColumnClz = (el) => {
+      el.classList.remove("page-full", "page-columns");
+      if (el.children) {
+        for (const child of el.children) {
+          stripColumnClz(child);
+        }
+      }
+    }
+    stripColumnClz(note)
+    if (id === null || id.startsWith('sec-')) {
+      // Special case sections, only their first couple elements
+      const container = document.createElement("div");
+      if (note.children && note.children.length > 2) {
+        container.appendChild(note.children[0].cloneNode(true));
+        for (let i = 1; i < note.children.length; i++) {
+          const child = note.children[i];
+          if (child.tagName === "P" && child.innerText === "") {
+            continue;
+          } else {
+            container.appendChild(child.cloneNode(true));
+            break;
+          }
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(container);
+        }
+        return container.innerHTML
+      } else {
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        return note.innerHTML;
+      }
+    } else {
+      // Remove any anchor links if they are present
+      const anchorLink = note.querySelector('a.anchorjs-link');
+      if (anchorLink) {
+        anchorLink.remove();
+      }
+      if (window.Quarto?.typesetMath) {
+        window.Quarto.typesetMath(note);
+      }
+      // TODO in 1.5, we should make sure this works without a callout special case
+      if (note.classList.contains("callout")) {
+        return note.outerHTML;
+      } else {
+        return note.innerHTML;
+      }
+    }
+  }
+  for (var i=0; i<xrefs.length; i++) {
+    const xref = xrefs[i];
+    tippyHover(xref, undefined, function(instance) {
+      instance.disable();
+      let url = xref.getAttribute('href');
+      let hash = undefined; 
+      if (url.startsWith('#')) {
+        hash = url;
+      } else {
+        try { hash = new URL(url).hash; } catch {}
+      }
+      if (hash) {
+        const id = hash.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note !== null) {
+          try {
+            const html = processXRef(id, note.cloneNode(true));
+            instance.setContent(html);
+          } finally {
+            instance.enable();
+            instance.show();
+          }
+        } else {
+          // See if we can fetch this
+          fetch(url.split('#')[0])
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.getElementById(id);
+            if (note !== null) {
+              const html = processXRef(id, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      } else {
+        // See if we can fetch a full url (with no hash to target)
+        // This is a special case and we should probably do some content thinning / targeting
+        fetch(url)
+        .then(res => res.text())
+        .then(html => {
+          const parser = new DOMParser();
+          const htmlDoc = parser.parseFromString(html, "text/html");
+          const note = htmlDoc.querySelector('main.content');
+          if (note !== null) {
+            // This should only happen for chapter cross references
+            // (since there is no id in the URL)
+            // remove the first header
+            if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+              note.children[0].remove();
+            }
+            const html = processXRef(null, note);
+            instance.setContent(html);
+          } 
+        }).finally(() => {
+          instance.enable();
+          instance.show();
+        });
+      }
+    }, function(instance) {
+    });
+  }
+      let selectedAnnoteEl;
+      const selectorForAnnotation = ( cell, annotation) => {
+        let cellAttr = 'data-code-cell="' + cell + '"';
+        let lineAttr = 'data-code-annotation="' +  annotation + '"';
+        const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+        return selector;
+      }
+      const selectCodeLines = (annoteEl) => {
+        const doc = window.document;
+        const targetCell = annoteEl.getAttribute("data-target-cell");
+        const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+        const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+        const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+        const lineIds = lines.map((line) => {
+          return targetCell + "-" + line;
+        })
+        let top = null;
+        let height = null;
+        let parent = null;
+        if (lineIds.length > 0) {
+            //compute the position of the single el (top and bottom and make a div)
+            const el = window.document.getElementById(lineIds[0]);
+            top = el.offsetTop;
+            height = el.offsetHeight;
+            parent = el.parentElement.parentElement;
+          if (lineIds.length > 1) {
+            const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+            const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+            height = bottom - top;
+          }
+          if (top !== null && height !== null && parent !== null) {
+            // cook up a div (if necessary) and position it 
+            let div = window.document.getElementById("code-annotation-line-highlight");
+            if (div === null) {
+              div = window.document.createElement("div");
+              div.setAttribute("id", "code-annotation-line-highlight");
+              div.style.position = 'absolute';
+              parent.appendChild(div);
+            }
+            div.style.top = top - 2 + "px";
+            div.style.height = height + 4 + "px";
+            div.style.left = 0;
+            let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+            if (gutterDiv === null) {
+              gutterDiv = window.document.createElement("div");
+              gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+              gutterDiv.style.position = 'absolute';
+              const codeCell = window.document.getElementById(targetCell);
+              const gutter = codeCell.querySelector('.code-annotation-gutter');
+              gutter.appendChild(gutterDiv);
+            }
+            gutterDiv.style.top = top - 2 + "px";
+            gutterDiv.style.height = height + 4 + "px";
+          }
+          selectedAnnoteEl = annoteEl;
+        }
+      };
+      const unselectCodeLines = () => {
+        const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+        elementsIds.forEach((elId) => {
+          const div = window.document.getElementById(elId);
+          if (div) {
+            div.remove();
+          }
+        });
+        selectedAnnoteEl = undefined;
+      };
+        // Handle positioning of the toggle
+    window.addEventListener(
+      "resize",
+      throttle(() => {
+        elRect = undefined;
+        if (selectedAnnoteEl) {
+          selectCodeLines(selectedAnnoteEl);
+        }
+      }, 10)
+    );
+    function throttle(fn, ms) {
+    let throttle = false;
+    let timer;
+      return (...args) => {
+        if(!throttle) { // first call gets through
+            fn.apply(this, args);
+            throttle = true;
+        } else { // all the others get throttled
+            if(timer) clearTimeout(timer); // cancel #2
+            timer = setTimeout(() => {
+              fn.apply(this, args);
+              timer = throttle = false;
+            }, ms);
+        }
+      };
+    }
+      // Attach click handler to the DT
+      const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+      for (const annoteDlNode of annoteDls) {
+        annoteDlNode.addEventListener('click', (event) => {
+          const clickedEl = event.target;
+          if (clickedEl !== selectedAnnoteEl) {
+            unselectCodeLines();
+            const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+            if (activeEl) {
+              activeEl.classList.remove('code-annotation-active');
+            }
+            selectCodeLines(clickedEl);
+            clickedEl.classList.add('code-annotation-active');
+          } else {
+            // Unselect the line
+            unselectCodeLines();
+            clickedEl.classList.remove('code-annotation-active');
+          }
+        });
+      }
+  const findCites = (el) => {
+    const parentEl = el.parentElement;
+    if (parentEl) {
+      const cites = parentEl.dataset.cites;
+      if (cites) {
+        return {
+          el,
+          cites: cites.split(' ')
+        };
+      } else {
+        return findCites(el.parentElement)
+      }
+    } else {
+      return undefined;
+    }
+  };
+  var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+  for (var i=0; i<bibliorefs.length; i++) {
+    const ref = bibliorefs[i];
+    const citeInfo = findCites(ref);
+    if (citeInfo) {
+      tippyHover(citeInfo.el, function() {
+        var popup = window.document.createElement('div');
+        citeInfo.cites.forEach(function(cite) {
+          var citeDiv = window.document.createElement('div');
+          citeDiv.classList.add('hanging-indent');
+          citeDiv.classList.add('csl-entry');
+          var biblioDiv = window.document.getElementById('ref-' + cite);
+          if (biblioDiv) {
+            citeDiv.innerHTML = biblioDiv.innerHTML;
+          }
+          popup.appendChild(citeDiv);
+        });
+        return popup.innerHTML;
+      });
+    }
+  }
+});
+</script>
+</div> <!-- /content -->
+<footer class="footer">
+  <div class="nav-footer">
+    <div class="nav-footer-left">
+      &nbsp;
+    </div>   
+    <div class="nav-footer-center">
+      <ul class="footer-items list-unstyled">
+    <li class="nav-item">
+ Site made with <a href="https://quarto.org/" target="_blank"><img src="https://quarto.org/favicon.png" width="12"> quarto</a> and <a href="https://posit-dev.github.io/r-shinylive/" target="_blank">shinylive</a>
+  </li>  
+</ul>
+    <div class="toc-actions"><ul><li><a href="https://github.com/jhelvy/potus-econ-scorecard/edit/main/index.qmd" class="toc-action"><i class="bi bi-github"></i>Edit this page</a></li><li><a href="https://github.com/jhelvy/potus-econ-scorecard/issues/new" class="toc-action"><i class="bi empty"></i>Report an issue</a></li></ul></div></div>
+    <div class="nav-footer-right">
+      &nbsp;
+    </div>
+  </div>
+</footer>
+
+
+
+
+</body></html>
