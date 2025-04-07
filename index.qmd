@@ -24,9 +24,10 @@ library(scales)
 library(ggrepel)
 library(plotly)
 library(tidyr)
+library(DT)
 
 #-------------------------------------------
-# Data Loading and Processing Functions
+# Data Loading and Processing Functions ----
 #-------------------------------------------
 
 # Function to load prepared data
@@ -216,7 +217,7 @@ process_econ_data <- function(market_data,
 }
 
 #-------------------------------------------
-# UI Definition - Simplified for shinylive
+# UI Definition ----
 #-------------------------------------------
 
 ui <- fluidPage(
@@ -269,15 +270,16 @@ ui <- fluidPage(
       plotlyOutput("economic_plot", height = "100%"),
       div(
         style = "display: flex; justify-content: flex-end; margin-top: 10px;",
-        downloadButton("download_plot", "Download Plot", class = "btn-sm"),
-        downloadButton("download_data", "Download Data", class = "btn-sm")
-      )
+        actionButton("export_plot", "Export Plot", class = "btn-sm"),
+        actionButton("export_data", "Export Data", class = "btn-sm")
+      ),
+      uiOutput("export_modal")
     )
   )
 )
 
 #-------------------------------------------
-# Server Logic
+# Server Logic ----
 #-------------------------------------------
 
 server <- function(input, output, session) {
@@ -305,7 +307,7 @@ server <- function(input, output, session) {
     removeModal()
   })
   
-  # Dynamic UI for president selection
+  # Dynamic UI for president selection - reversed order
   output$president_selection <- renderUI({
     data <- loaded_data()
     
@@ -313,14 +315,14 @@ server <- function(input, output, session) {
       return(NULL)
     }
     
-    # Get presidents from data
-    presidents <- data$presidents_data$president
+    # Get presidents from data and reverse the order
+    presidents <- rev(data$presidents_data$president)
     
-    # Return checkbox group input
+    # Return checkbox group input with reversed order
     checkboxGroupInput("selected_presidents", 
-                       "Select Presidents:", # Now with a label
+                       "Select Presidents:", 
                        choices = presidents,
-                       selected = tail(presidents, 4)) # Select the last 4 presidents by default
+                       selected = head(presidents, 4)) # Select the first 4 presidents in the reversed list (most recent)
   })
   
   # Process data based on user selections
@@ -392,8 +394,9 @@ server <- function(input, output, session) {
         filter(day == max(day)) %>%
         mutate(label = paste0(president, " (", round(value, 1), ")"))
       
-      # Create base ggplot
-      p <- ggplot(plot_data, aes(x = day, y = value, color = party, group = president)) +
+      # Create base ggplot with enhanced tooltips
+      p <- ggplot(plot_data, aes(x = day, y = value, color = party, group = president, 
+                                 text = paste0(president, "<br>Day: ", day, "<br>Value: ", round(value, 2)))) +
         geom_line(size = 1, alpha = 0.8) +
         geom_point(data = end_points, size = 3) +
         scale_color_manual(values = party_colors) +
@@ -401,7 +404,8 @@ server <- function(input, output, session) {
           title = paste(index_name, "Since", ref_type),
           subtitle = paste0("Showing first ", input$time_period, " days"),
           x = paste("Days Since", ref_type),
-          y = index_name
+          y = index_name,
+          color = "Party"  # Capitalize Party in legend
         ) +
         theme_minimal() +
         theme(
@@ -418,7 +422,7 @@ server <- function(input, output, session) {
       }
       
       # Convert to plotly
-      p_ly <- ggplotly(p, tooltip = c("y", "x")) %>%
+      p_ly <- ggplotly(p, tooltip = "text") %>%
         layout(
           legend = list(orientation = "h", y = -0.2),
           # Add more space on the right margin for labels
@@ -460,8 +464,9 @@ server <- function(input, output, session) {
         filter(day == max(day)) %>%
         mutate(label = paste0(president, " (", round(percent_change, 1), "%)"))
       
-      # Create base ggplot
-      p <- ggplot(plot_data, aes(x = day, y = percent_change, color = party, group = president)) +
+      # Create base ggplot with enhanced tooltips
+      p <- ggplot(plot_data, aes(x = day, y = percent_change, color = party, group = president, 
+                                 text = paste0(president, "<br>Day: ", day, "<br>Change: ", round(percent_change, 2), "%"))) +
         geom_line(size = 1, alpha = 0.8) +
         geom_point(data = end_points, size = 3) +
         geom_hline(yintercept = 0, linetype = "dashed", color = "gray50") +
@@ -470,7 +475,8 @@ server <- function(input, output, session) {
           title = paste(index_name, "Performance Since", ref_type),
           subtitle = paste0("Showing first ", input$time_period, " days (0% = value on reference date)"),
           x = paste("Days Since", ref_type),
-          y = "Percent Change (%)"
+          y = "Percent Change (%)",
+          color = "Party"  # Capitalize Party in legend
         ) +
         theme_minimal() +
         theme(
@@ -482,7 +488,7 @@ server <- function(input, output, session) {
         coord_cartesian(xlim = c(0, max(plot_data$day) * 1.3))
       
       # Convert to plotly
-      p_ly <- ggplotly(p, tooltip = c("text", "y", "x")) %>%
+      p_ly <- ggplotly(p, tooltip = "text") %>%
         layout(
           legend = list(orientation = "h", y = -0.2),
           # Add more space on the right margin for labels
@@ -529,9 +535,12 @@ server <- function(input, output, session) {
     data <- loaded_data()
     req(data, data$presidents_data)
     
+    # Get reversed president list to match the UI
+    presidents <- rev(data$presidents_data$president)
+    
     updateCheckboxGroupInput(session, "selected_presidents",
-                             choices = data$presidents_data$president,
-                             selected = data$presidents_data$president)
+                             choices = presidents,
+                             selected = presidents)
   })
   
   # Handle deselect all button
@@ -539,171 +548,229 @@ server <- function(input, output, session) {
     data <- loaded_data()
     req(data, data$presidents_data)
     
+    # Get reversed president list to match the UI
+    presidents <- rev(data$presidents_data$president)
+    
     updateCheckboxGroupInput(session, "selected_presidents",
-                             choices = data$presidents_data$president,
+                             choices = presidents,
                              selected = character(0))
   })
   
-  # Download handlers for the plot
-  output$download_plot <- downloadHandler(
-    filename = function() {
-      index_name <- switch(input$selected_index,
-                           "sp500" = "SP500",
-                           "djia" = "DowJones",
-                           "nasdaq" = "NASDAQ",
-                           "unemployment" = "Unemployment",
-                           "inflation" = "Inflation")
-      paste(index_name, "_presidential_comparison_", Sys.Date(), ".png", sep = "")
-    },
-    content = function(file) {
-      # Get processed data
-      plot_data <- processed_data()
-      
-      # Make sure there's data
-      req(nrow(plot_data) > 0)
-      
-      # Reference type for title
-      ref_type <- if (input$reference_date == "inauguration") {
-        "Inauguration Day"
-      } else {
-        "Day Before Election"
-      }
-      
-      # Define party colors
-      party_colors <- c("Democratic" = "blue", "Republican" = "red")
-      
-      if (input$selected_index %in% c("unemployment", "inflation")) {
-        # Plot for economic indicators
-        index_name <- unique(plot_data$index_name)[1]
-        
-        # Create end labels data
-        end_labels <- plot_data %>% 
-          group_by(president) %>% 
-          filter(day == max(day)) %>%
-          mutate(label = paste0(president, " (", round(value, 1), ")"))
-        
-        # Create ggplot
-        p <- ggplot(plot_data, aes(x = day, y = value, color = party, group = president)) +
-          geom_line(size = 1) +
-          geom_point(data = end_labels, size = 3) +
-          # Add end labels
-          geom_text_repel(
-            data = end_labels,
-            aes(label = label),
-            direction = "y",
-            hjust = 0,
-            vjust = 0,
-            nudge_x = 5,
-            force = 3,
-            segment.size = 0.2,
-            box.padding = 0.5,
-            show.legend = FALSE
-          ) +
-          scale_color_manual(values = party_colors) +
-          labs(
-            title = paste(index_name, "Since", ref_type),
-            subtitle = paste0("Showing first ", input$time_period, " days"),
-            x = paste("Days Since", ref_type),
-            y = index_name,
-            caption = paste("Generated on", Sys.Date())
-          ) +
-          theme_minimal() +
-          theme(
-            plot.title = element_text(face = "bold", size = 16),
-            plot.subtitle = element_text(size = 12),
-            panel.grid.minor = element_blank(),
-            legend.position = "bottom",
-            legend.title = element_text(face = "bold"),
-            axis.title = element_text(face = "bold")
-          ) +
-          coord_cartesian(xlim = c(0, max(plot_data$day) * 1.15))
-        
-        # Set y-limits for unemployment to start at 0
-        if (input$selected_index == "unemployment") {
-          p <- p + ylim(0, max(plot_data$value) * 1.1)
-        }
-        
-        # Save with appropriate dimensions
-        ggsave(file, plot = p, width = 12, height = 8, dpi = 300)
-        
-      } else {
-        # Plot for a single market index
-        index_name <- unique(plot_data$index_name)[1]
-        
-        # Create end labels data
-        end_labels <- plot_data %>% 
-          group_by(president) %>% 
-          filter(day == max(day)) %>%
-          mutate(label = paste0(president, " (", round(percent_change, 1), "%)"))
-        
-        # Create ggplot
-        p <- ggplot(plot_data, aes(x = day, y = percent_change, color = party, group = president)) +
-          geom_line(size = 1) +
-          geom_point(data = end_labels, size = 3) +
-          # Add end labels
-          geom_text_repel(
-            data = end_labels,
-            aes(label = label),
-            direction = "y",
-            hjust = 0,
-            vjust = 0,
-            nudge_x = 5,
-            force = 3,
-            segment.size = 0.2,
-            box.padding = 0.5,
-            show.legend = FALSE
-          ) +
-          geom_hline(yintercept = 0, linetype = "dashed", color = "gray50") +
-          scale_color_manual(values = party_colors) +
-          labs(
-            title = paste(index_name, "Performance Since", ref_type),
-            subtitle = paste0("Showing first ", input$time_period, " days (0% = value on reference date)"),
-            x = paste("Days Since", ref_type),
-            y = "Percent Change (%)",
-            caption = paste("Generated on", Sys.Date())
-          ) +
-          theme_minimal() +
-          theme(
-            plot.title = element_text(face = "bold", size = 16),
-            plot.subtitle = element_text(size = 12),
-            panel.grid.minor = element_blank(),
-            legend.position = "bottom",
-            legend.title = element_text(face = "bold"),
-            axis.title = element_text(face = "bold")
-          ) +
-          coord_cartesian(xlim = c(0, max(plot_data$day) * 1.15))
-        
-        # Save with appropriate dimensions
-        ggsave(file, plot = p, width = 12, height = 8, dpi = 300)
-      }
+  # Export plot handler - with embedded URL in caption and more right space
+  observeEvent(input$export_plot, {
+    req(processed_data())
+    plot_data <- processed_data()
+    
+    # Reference type for title
+    ref_type <- if (input$reference_date == "inauguration") {
+      "Inauguration Day"
+    } else {
+      "Day Before Election"
     }
-  )
-  
-  # Download handler for data
-  output$download_data <- downloadHandler(
-    filename = function() {
-      index_name <- switch(input$selected_index,
-                           "sp500" = "SP500",
-                           "djia" = "DowJones",
-                           "nasdaq" = "NASDAQ",
-                           "unemployment" = "Unemployment",
-                           "inflation" = "Inflation")
-      paste(index_name, "_presidential_data_", Sys.Date(), ".csv", sep = "")
-    },
-    content = function(file) {
-      # Get processed data
-      data <- processed_data()
+    
+    # Define party colors
+    party_colors <- c("Democratic" = "blue", "Republican" = "red")
+    
+    # Create a static plot with ggrepel labels for download
+    if (input$selected_index %in% c("unemployment", "inflation")) {
+      # Plot for economic indicators
+      index_name <- unique(plot_data$index_name)[1]
       
-      # Add metadata columns to make the CSV more useful
-      export_data <- data %>%
-        mutate(
-          reference_type = if(input$reference_date == "inauguration") "Inauguration Day" else "Day Before Election",
-          data_generated = Sys.Date()
+      # Create end labels data
+      end_labels <- plot_data %>% 
+        group_by(president) %>% 
+        filter(day == max(day)) %>%
+        mutate(label = paste0(president, " (", round(value, 1), ")"))
+      
+      # Create ggplot with embedded URL in caption and more right space
+      p <- ggplot(plot_data, aes(x = day, y = value, color = party, group = president)) +
+        geom_line(size = 1) +
+        geom_point(data = end_labels, size = 3) +
+        # Add end labels
+        geom_text_repel(
+          data = end_labels,
+          aes(label = label),
+          direction = "y",
+          hjust = 0,
+          vjust = 0,
+          nudge_x = 5,
+          force = 3,
+          segment.size = 0.2,
+          box.padding = 0.5,
+          show.legend = FALSE
+        ) +
+        scale_color_manual(values = party_colors) +
+        labs(
+          title = paste(index_name, "Since", ref_type),
+          subtitle = paste0("Showing first ", input$time_period, " days"),
+          x = paste("Days Since", ref_type),
+          y = index_name,
+          caption = paste0("Generated on ", Sys.Date(), " from https://jhelvy.github.io/potus-econ-scorecard/"),
+          color = "Party"
+        ) +
+        theme_minimal() +
+        theme(
+          plot.title = element_text(face = "bold", size = 16),
+          plot.subtitle = element_text(size = 12),
+          panel.grid.minor = element_blank(),
+          legend.position = "bottom",
+          legend.title = element_text(face = "bold"),
+          axis.title = element_text(face = "bold"),
+          plot.caption = element_text(size = 9, hjust = 0)
+        ) +
+        coord_cartesian(xlim = c(0, max(plot_data$day) * 1.3))  # More right space
+      
+      # Set y-limits for unemployment to start at 0
+      if (input$selected_index == "unemployment") {
+        p <- p + ylim(0, max(plot_data$value) * 1.1)
+      }
+    } else {
+      # Plot for a single market index
+      index_name <- unique(plot_data$index_name)[1]
+      
+      # Create end labels data
+      end_labels <- plot_data %>% 
+        group_by(president) %>% 
+        filter(day == max(day)) %>%
+        mutate(label = paste0(president, " (", round(percent_change, 1), "%)"))
+      
+      # Create ggplot with embedded URL in caption and more right space
+      p <- ggplot(plot_data, aes(x = day, y = percent_change, color = party, group = president)) +
+        geom_line(size = 1) +
+        geom_point(data = end_labels, size = 3) +
+        # Add end labels
+        geom_text_repel(
+          data = end_labels,
+          aes(label = label),
+          direction = "y",
+          hjust = 0,
+          vjust = 0,
+          nudge_x = 5,
+          force = 3,
+          segment.size = 0.2,
+          box.padding = 0.5,
+          show.legend = FALSE
+        ) +
+        geom_hline(yintercept = 0, linetype = "dashed", color = "gray50") +
+        scale_color_manual(values = party_colors) +
+        labs(
+          title = paste(index_name, "Performance Since", ref_type),
+          subtitle = paste0("Showing first ", input$time_period, " days (0% = value on reference date)"),
+          x = paste("Days Since", ref_type),
+          y = "Percent Change (%)",
+          caption = paste0("Generated on ", Sys.Date(), " from https://jhelvy.github.io/potus-econ-scorecard/"),
+          color = "Party"
+        ) +
+        theme_minimal() +
+        theme(
+          plot.title = element_text(face = "bold", size = 16),
+          plot.subtitle = element_text(size = 12),
+          panel.grid.minor = element_blank(),
+          legend.position = "bottom",
+          legend.title = element_text(face = "bold"),
+          axis.title = element_text(face = "bold"),
+          plot.caption = element_text(size = 9, hjust = 0)
+        ) +
+        coord_cartesian(xlim = c(0, max(plot_data$day) * 1.3))  # More right space
+    }
+    
+    # Show the plot in a modal with save instructions
+    showModal(
+      modalDialog(
+        title = "Plot Export",
+        size = "l",
+        plotOutput("export_plot_preview", height = "500px"),
+        hr(),
+        tags$div(
+          style = "text-align: center;",
+          tags$p("To save this image, right-click on the plot above and select 'Save image as...'")
+        ),
+        footer = tagList(
+          modalButton("Close")
         )
-      
-      write.csv(export_data, file, row.names = FALSE)
-    }
-  )
+      )
+    )
+    
+    output$export_plot_preview <- renderPlot({
+      p
+    }, height = 500, width = 800, res = 100)  # Increased resolution for better quality
+  })
+  
+  # Export data handler - fixed to properly export all data
+  observeEvent(input$export_data, {
+    req(processed_data())
+    export_data <- processed_data() %>%
+      mutate(
+        reference_type = if(input$reference_date == "inauguration") "Inauguration Day" else "Day Before Election",
+        data_generated = as.character(Sys.Date())
+      )
+    
+    # Show the data in a modal
+    showModal(
+      modalDialog(
+        title = "Data Table View",
+        size = "l",
+        tags$div(
+          style = "max-height: 600px; overflow-y: auto;",
+          DT::dataTableOutput("export_data_table")
+        ),
+        footer = tagList(
+          modalButton("Close"),
+          # Alternative direct download button for all data
+          downloadButton("direct_csv_download", "Download All Data as CSV")
+        )
+      )
+    )
+    
+    # Render the data table with explicit export options
+    output$export_data_table <- DT::renderDataTable({
+      DT::datatable(
+        export_data,
+        options = list(
+          pageLength = 25,
+          scrollX = TRUE,
+          dom = 'Bfrtip',
+          buttons = list(
+            list(
+              extend = 'copyHtml5',
+              text = 'Copy All Data',
+              exportOptions = list(modifier = list(page = 'all'))
+            ),
+            list(
+              extend = 'csvHtml5', 
+              text = 'Export All to CSV',
+              exportOptions = list(modifier = list(page = 'all'))
+            ),
+            list(
+              extend = 'excelHtml5',
+              text = 'Export All to Excel',
+              exportOptions = list(modifier = list(page = 'all'))
+            )
+          )
+        ),
+        extensions = c('Buttons'),
+        selection = 'none',
+        filter = 'top',
+        rownames = FALSE
+      )
+    })
+    
+    # Direct CSV download handler as a fallback
+    output$direct_csv_download <- downloadHandler(
+      filename = function() {
+        index_name <- switch(input$selected_index,
+                            "sp500" = "SP500",
+                            "djia" = "DowJones",
+                            "nasdaq" = "NASDAQ",
+                            "unemployment" = "Unemployment",
+                            "inflation" = "Inflation")
+        paste0(index_name, "_data_", Sys.Date(), ".csv")
+      },
+      content = function(file) {
+        write.csv(export_data, file, row.names = FALSE)
+      }
+    )
+  })
 }
 
 #-------------------------------------------

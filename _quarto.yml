@@ -48,3 +48,4 @@ shinylive:
     - ggrepel
     - plotly
     - tidyr
+    - DT
