@@ -1,0 +1,26 @@
+---
+output: github_document
+---
+
+<!-- README.md is generated from README.Rmd. Please edit that file -->
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse   = TRUE,
+  warning    = FALSE,
+  message    = FALSE,
+  comment    = "#>",
+  fig.path   = "man/figures/",
+  fig.retina = 3
+)
+```
+
+[![Shinylive](https://img.shields.io/badge/Shinylive-2.0.0-blue)](https://posit.co/blog/shinylive-for-r/)
+[![GitHub stars](https://img.shields.io/github/stars/jhelvy/potus-econ-scorecard?style=social)](https://github.com/jhelvy/potus-econ-scorecard)
+
+## Source code for the [POTUS Economic Scorecard](https://jhelvy.github.io/potus-econ-scorecard/) app
+
+![POTUS Economic Scorecard Interface](https://raw.githubusercontent.com/jhelvy/potus-econ-scorecard/main/screenshot.png)
+
+```{r child="description.Rmd"}
+```

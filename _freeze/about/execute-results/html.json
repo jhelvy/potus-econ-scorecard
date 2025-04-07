@@ -1,0 +1,15 @@
+{
+  "hash": "7cf491a173345e951bb59d57b83dcb43",
+  "result": {
+    "engine": "knitr",
+    "markdown": "---\ntitle: \"About\"\n---\n\n\n## Overview\n\nPOTUS Economic Scorecard is an interactive [Shiny](https://shiny.posit.co/) application that allows users to compare economic performance metrics across different presidential administrations. The app provides visual representations of various economic indicators, including:\n\n- S&P 500\n- Dow Jones Industrial Average\n- NASDAQ\n- Unemployment Rate\n- Inflation Rate\n\n## Features\n\n- **Multiple Economic Indicators**: Compare performance using S&P 500, Dow Jones, NASDAQ, Unemployment Rate, and Inflation Rate.\n- **Flexible Reference Points**: Choose between \"Inauguration Day\" or \"Day Before Election\" as your reference point.\n- **Party Filtering**: Filter presidents by political party.\n- **Customizable Time Period**: Adjust the number of days to display for comparison.\n- **Data Export**: Download the plot or raw data for your own analysis\n\n## How It Works\n\nHistorical economic data is downloaded daily and stored in the app [GitHub repository](https://github.com/jhelvy/potus-econ-scorecard). The app loads this data and calculates performance metrics relative to your chosen reference date. For market indices (S&P 500, Dow Jones, NASDAQ), performance is shown as percent change from the reference date. For economic indicators (Unemployment Rate, Inflation Rate), absolute values are displayed.\n\n## Data Sources\n\n- Market data (S&P 500, Dow Jones, NASDAQ) is sourced from Yahoo Finance\n- Economic indicators are sourced from FRED (Federal Reserve Economic Data)\n\n## Technology\n\nThis application is built using:\n\n- [R Shiny](https://shiny.posit.co/) for the interactive web application.\n- [shinylive](https://posit-dev.github.io/r-shinylive/) for browser-based execution without a server.\n- [Quarto](https://quarto.org/) for website publishing.\n- [plotly](https://plotly.com/r/) for interactive visualizations.\n\n## Local Deployment\n\nTo run the app locally:\n\n1. Clone the repository:\n\n   ```bash\n   git clone https://github.com/jhelvy/potus-econ-scorecard.git\n   cd potus-econ-scorecard\n   ```\n\n2. Open the project in RStudio or run from the R console:\n   ```r\n   library(shiny)\n   runApp()\n   ```\n\n## Contributing\n\nContributions are welcome! Please feel free to submit a Pull Request.\n\n1. Fork the repository\n2. Create your feature branch (`git checkout -b feature/amazing-feature`)\n3. Commit your changes (`git commit -m 'Add some amazing feature'`)\n4. Push to the branch (`git push origin feature/amazing-feature`)\n5. Open a Pull Request\n\n## License\n\nThis project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.\n",
+    "supporting": [],
+    "filters": [
+      "rmarkdown/pagebreak.lua"
+    ],
+    "includes": {},
+    "engineDependencies": {},
+    "preserve": {},
+    "postProcess": true
+  }
+}
