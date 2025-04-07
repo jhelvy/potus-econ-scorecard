@@ -9,7 +9,7 @@ stars](https://img.shields.io/github/stars/jhelvy/potus-econ-scorecard?style=soc
 
 <figure>
 <img
-src="https://raw.githubusercontent.com/jhelvy/potus-econ-scorecard/main/screenshot.png"
+src="https://github.com/jhelvy/potus-econ-scorecard/blob/main/screenshot.png?raw=true"
 alt="POTUS Economic Scorecard Interface" />
 <figcaption aria-hidden="true">POTUS Economic Scorecard
 Interface</figcaption>
@@ -98,5 +98,6 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## License
 
-This project is licensed under the MIT License - see the
-[LICENSE](LICENSE) file for details.
+This project is licensed under a CC-BY-SA-4.0 license - see the
+[LICENSE](https://github.com/jhelvy/potus-econ-scorecard/blob/main/LICENSE.md)
+file for details.

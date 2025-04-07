@@ -20,7 +20,7 @@ knitr::opts_chunk$set(
 
 ## Source code for the [POTUS Economic Scorecard](https://jhelvy.github.io/potus-econ-scorecard/) app
 
-![POTUS Economic Scorecard Interface](https://raw.githubusercontent.com/jhelvy/potus-econ-scorecard/main/screenshot.png)
+![POTUS Economic Scorecard Interface](https://github.com/jhelvy/potus-econ-scorecard/blob/main/screenshot.png?raw=true)
 
 ```{r child="description.Rmd"}
 ```
