@@ -235,36 +235,34 @@ tryCatch({
   # Add metadata about when the data was retrieved
   combined_data$data_retrieved <- Sys.Date()
   
-  # Check if we have existing data to merge with
-  if (file.exists("market_data.csv")) {
-    message("Found existing market_data.csv, checking for updates...")
-    existing_data <- read.csv("market_data.csv", stringsAsFactors = FALSE)
-    
-    # Convert date columns to Date objects for comparison
-    existing_data$date <- as.Date(existing_data$date)
-    
-    # Identify new data (dates not in existing data)
-    new_data <- combined_data %>%
+  # Merge with existing data
+  existing_data <- read.csv(
+      "https://raw.githubusercontent.com/jhelvy/presidential-econ-tracker/refs/heads/main/market_data.csv",
+      stringsAsFactors = FALSE
+  )
+  
+  # Convert date columns to Date objects for comparison
+  existing_data$date <- as.Date(existing_data$date)
+  existing_data$data_retrieved <- as.Date(existing_data$data_retrieved)
+  
+  # Identify new data (dates not in existing data)
+  new_data <- combined_data %>%
       filter(!date %in% existing_data$date)
-    
-    if (nrow(new_data) > 0) {
+  
+  if (nrow(new_data) > 0) {
       message(paste("Found", nrow(new_data), "new data points to add"))
       
       # Merge existing and new data
       updated_data <- bind_rows(existing_data, new_data) %>%
-        arrange(index_id, date)
+          arrange(index_id, date)
       
       # Save the updated data
       write.csv(updated_data, "market_data.csv", row.names = FALSE)
       message("Data collection complete. Updated market_data.csv with new data.")
-    } else {
-      message("No new data found. Keeping existing market_data.csv file.")
-    }
   } else {
-    # Save the data to CSV (first time)
-    write.csv(combined_data, "market_data.csv", row.names = FALSE)
-    message("Data collection complete. Created new market_data.csv file.")
+      message("No new data found. Keeping existing market_data.csv file.")
   }
+    
 }, error = function(e) {
   stop(paste("Error in data collection process:", e$message))
 })
