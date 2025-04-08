@@ -1,6 +1,10 @@
 name: Daily Market Data Update
 
 on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
   schedule:
     # Run daily at 1:00 AM UTC (after US markets close)
     - cron: '0 1 * * *'
