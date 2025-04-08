@@ -10,9 +10,15 @@ project:
     - shinylive-sw.js
 
 website:  
-  repo-url: https://github.com/jhelvy/potus-econ-scorecard
-  repo-actions: [edit, issue]
   title: "POTUS Economic Scorecard"
+  repo-url: https://github.com/jhelvy/potus-econ-scorecard
+  site-url: https://jhelvy.github.io/potus-econ-scorecard/
+  repo-actions: [edit, issue]
+  image: screenshot.png
+  back-to-top-navigation: false
+  open-graph:
+    locale: es_ES
+    site-name: https://jhelvy.github.io/potus-econ-scorecard/
   navbar:
     search: false
     left:
