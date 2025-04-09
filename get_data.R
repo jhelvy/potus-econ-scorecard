@@ -236,9 +236,8 @@ tryCatch({
   combined_data$data_retrieved <- Sys.Date()
   
   # Merge with existing data
-  existing_data <- read.csv(
-      "https://raw.githubusercontent.com/jhelvy/presidential-econ-tracker/refs/heads/main/market_data.csv",
-      stringsAsFactors = FALSE
+  existing_data <- arrow::read_parquet(
+      "https://raw.githubusercontent.com/jhelvy/presidential-econ-tracker/refs/heads/main/market_data.parquet"
   )
   
   # Convert date columns to Date objects for comparison
