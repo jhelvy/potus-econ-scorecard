@@ -28,6 +28,7 @@ library(plotly)
 # Data Loading and Processing Functions ----
 #-------------------------------------------
 
+# Function to load presidents data
 load_presidents_data <- function() {
     presidents_data <- data.frame(
       president = c(
@@ -64,22 +65,25 @@ load_presidents_data <- function() {
     # Convert date column to Date type
     presidents_data$inauguration_date <- as.Date(presidents_data$inauguration_date)
     presidents_data$election_date <- as.Date(presidents_data$election_date)
-    
-    # Write once for use in get_data.R 
-    saveRDS(presidents_data, "presidents_data.Rds")
-    
+
+    # Write once for use in get_data.R
+    # readr::write_csv(presidents_data, "presidents_data.csv")
+
     return(presidents_data)
 }
 
 # Function to load prepared data
 load_data <- function() {
   # URL for the data files in GitHub
-  market_data_url <- "https://raw.githubusercontent.com/jhelvy/potus-econ-scorecard/refs/heads/main/market_data.parquet"
-  
+  market_data_url <- "https://raw.githubusercontent.com/jhelvy/potus-econ-scorecard/refs/heads/main/market_data.csv"
+
   # Load data
   tryCatch({
-    market_data_raw <- arrow::read_parquet(market_data_url)
+    market_data_raw <- read.csv(market_data_url, stringsAsFactors = FALSE)
     presidents_data <- load_presidents_data()
+
+    # Convert date column to Date type
+    market_data_raw$date <- as.Date(market_data_raw$date)
     
     # Organize market data by index
     market_data <- split(market_data_raw, market_data_raw$index_id)
@@ -99,15 +103,13 @@ load_data <- function() {
 }
 
 # Function to process market data for selected presidents and reference date
-process_market_data <- function(
-    market_data, 
-    presidents_data,
-    selected_index,
-    selected_presidents,
-    reference_type,
-    party_filter,
-    days_to_show) 
-{
+process_market_data <- function(market_data,
+                                presidents_data,
+                                selected_index,
+                                selected_presidents,
+                                reference_type,
+                                party_filter,
+                                days_to_show) {
   
   # Check if market data is available
   if (is.null(market_data) || length(market_data) == 0) {
@@ -181,15 +183,13 @@ process_market_data <- function(
 }
 
 # Function to process economic indicator data that shouldn't use percent change
-process_econ_data <- function(
-    market_data, 
-    presidents_data,
-    selected_index,
-    selected_presidents,
-    reference_type,
-    party_filter,
-    days_to_show
-) {
+process_econ_data <- function(market_data,
+                              presidents_data,
+                              selected_index,
+                              selected_presidents,
+                              reference_type,
+                              party_filter,
+                              days_to_show) {
 
   # Check if market data is available
   if (is.null(market_data) || length(market_data) == 0) {

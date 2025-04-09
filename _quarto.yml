@@ -51,4 +51,3 @@ shinylive:
     - dplyr
     - ggrepel
     - plotly
-    - arrow
