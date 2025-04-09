@@ -31,9 +31,11 @@ jobs:
           packages:
             cran::shinylive@0.3.0
             any::dplyr
+            any::readr
             any::lubridate
             any::tidyr
             any::quantmod
+            any::parquet
 
       - name: Run data update script
         run: |
