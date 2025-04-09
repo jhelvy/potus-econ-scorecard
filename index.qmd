@@ -66,7 +66,7 @@ load_presidents_data <- function() {
     presidents_data$election_date <- as.Date(presidents_data$election_date)
     
     # Write once for use in get_data.R 
-    # readr::write_csv(presidents_data, "presidents_data.csv")
+    saveRDS(presidents_data, "presidents_data.Rds")
     
     return(presidents_data)
 }

@@ -196,11 +196,11 @@ tryCatch({
   combined_data <- bind_rows(all_data)
   
   # Add metadata about when the data was retrieved
-  combined_data$data_retrieved <- Sys.Date()
+  combined_data$date_retrieved <- Sys.Date()
   
   # Merge with existing data
-  existing_data <- arrow::read_parquet(
-      "https://raw.githubusercontent.com/jhelvy/presidential-econ-tracker/refs/heads/main/market_data.parquet"
+  existing_data <- readRDS(
+      "https://raw.githubusercontent.com/jhelvy/presidential-econ-tracker/refs/heads/main/market_data.Rds"
   )
 
   # Identify new data (dates not in existing data)
@@ -215,7 +215,7 @@ tryCatch({
           arrange(index_id, date)
       
       # Save the updated data
-      arrow::write_parquet(updated_data, "market_data.csv")
+      saveRDS(updated_data, "market_data.Rds")
       message("Data collection complete. Updated market_data.parquet with new data.")
   } else {
       message("No new data found. Keeping existing market_data.parquet file.")
