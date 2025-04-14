@@ -8,45 +8,11 @@ library(dplyr)
 library(lubridate)
 library(quantmod)
 library(tidyr)
+library(zoo)  # For na.locf function needed for interpolating quarterly data
 
 #-------------------------------------------
 # Data Setup and Helper Functions
 #-------------------------------------------
-
-# Define presidential data
-# presidents_data <- data.frame(
-#   president = c(
-#     "Eisenhower (1957)", "Kennedy (1961)", "Johnson (1963)", "Nixon (1969)", 
-#     "Nixon (1973)", "Ford (1974)", "Carter (1977)", "Reagan (1981)",
-#     "Reagan (1985)", "Bush Sr. (1989)", "Clinton (1993)", "Clinton (1997)",
-#     "Bush Jr. (2001)", "Bush Jr. (2005)", "Obama (2009)", "Obama (2013)",
-#     "Trump (2017)", "Biden (2021)", "Trump (2025)"
-#   ),
-#   inauguration_date = as.Date(c(
-#     "1957-01-20", "1961-01-20", "1963-11-22", "1969-01-20",
-#     "1973-01-20", "1974-08-09", "1977-01-20", "1981-01-20",
-#     "1985-01-20", "1989-01-20", "1993-01-20", "1997-01-20",
-#     "2001-01-20", "2005-01-20", "2009-01-20", "2013-01-20",
-#     "2017-01-20", "2021-01-20", "2025-01-20"
-#   )),
-#   election_date = as.Date(c(
-#     "1956-11-06", "1960-11-08", "1960-11-08", "1968-11-05",
-#     "1972-11-07", "1972-11-07", "1976-11-02", "1980-11-04",
-#     "1984-11-06", "1988-11-08", "1992-11-03", "1996-11-05",
-#     "2000-11-07", "2004-11-02", "2008-11-04", "2012-11-06",
-#     "2016-11-08", "2020-11-03", "2024-11-05"
-#   )),
-#   party = c(
-#     "Republican", "Democratic", "Democratic", "Republican",
-#     "Republican", "Republican", "Democratic", "Republican",
-#     "Republican", "Republican", "Democratic", "Democratic",
-#     "Republican", "Republican", "Democratic", "Democratic",
-#     "Republican", "Democratic", "Republican"
-#   ),
-#   stringsAsFactors = FALSE
-# )
-#
-# write.csv(presidents_data, "presidents_data.csv", row.names = FALSE)
 
 # Improved error handling for data loading
 tryCatch({
@@ -60,7 +26,7 @@ tryCatch({
   stop(paste("Failed to load presidents data:", e$message))
 })
 
-# Define market indices to fetch
+# Define market indices to fetch from Yahoo Finance
 market_indices <- data.frame(
   symbol = c("^GSPC", "^DJI", "^IXIC"),
   name = c("S&P 500", "Dow Jones", "NASDAQ"),
@@ -68,11 +34,13 @@ market_indices <- data.frame(
   stringsAsFactors = FALSE
 )
 
-# Define FRED economic indicators to fetch
+# Define FRED economic indicators to fetch (now includes DXY as DTWEXBGS)
 fred_indicators <- data.frame(
-  symbol = c("UNRATE", "CPIAUCSL"),
-  name = c("Unemployment Rate", "Consumer Price Index"),
-  id = c("unemployment", "inflation"),
+  symbol = c("UNRATE", "CPIAUCSL", "DGS10", "CSUSHPISA", "GDPC1", "GFDEGDQ188S", "CIVPART", "DTWEXBGS"),
+  name = c("Unemployment Rate", "Consumer Price Index", "10-Year Treasury Yield", 
+           "Home Price Index", "Real GDP", "Federal Debt to GDP", "Labor Force Participation", "US Dollar Index"),
+  id = c("unemployment", "inflation", "treasury10yr", "housing", "gdp", "debt_gdp", "labor_participation", "dxy"),
+  frequency = c("monthly", "monthly", "daily", "monthly", "quarterly", "quarterly", "monthly", "daily"),
   stringsAsFactors = FALSE
 )
 
@@ -106,7 +74,7 @@ fetch_market_data <- function(max_retries = 3, retry_delay = 5) {
         # Create data frame
         idx_data <- data.frame(
           date = index(idx_obj),
-          value = as.numeric(idx_obj[, paste0(obj_name, ".Adjusted")]),
+          value = as.numeric(idx_obj[, ncol(idx_obj)]),  # Use the last column (Adjusted)
           index_id = index_id,
           index_name = index_name,
           stringsAsFactors = FALSE
@@ -151,6 +119,7 @@ fetch_fred_data <- function(max_retries = 3, retry_delay = 5) {
     symbol <- fred_indicators$symbol[i]
     index_id <- fred_indicators$id[i]
     index_name <- fred_indicators$name[i]
+    frequency <- fred_indicators$frequency[i]
     
     # Add retry logic
     for (attempt in 1:max_retries) {
@@ -171,6 +140,8 @@ fetch_fred_data <- function(max_retries = 3, retry_delay = 5) {
           stringsAsFactors = FALSE
         )
         
+        # Special handling for specific indicators
+        
         # For CPI, convert to year-over-year percent change (inflation rate)
         if (index_id == "inflation") {
           # Calculate year-over-year percent change for CPI
@@ -185,6 +156,42 @@ fetch_fred_data <- function(max_retries = 3, retry_delay = 5) {
           
           # Update the index name to clarify it's YoY inflation
           idx_data$index_name <- "Inflation Rate (YoY)"
+        }
+        
+        # For quarterly data, interpolate to daily to create smoother charts
+        if (frequency == "quarterly") {
+          # Order by date
+          idx_data <- idx_data %>%
+            arrange(date)
+          
+          # Get date range
+          min_date <- min(idx_data$date)
+          max_date <- max(idx_data$date)
+          
+          # Create a complete date sequence at daily level
+          date_range <- seq.Date(from = min_date, to = max_date, by = "day")
+          
+          # Create a skeleton data frame with all dates
+          daily_data <- data.frame(
+            date = date_range,
+            stringsAsFactors = FALSE
+          )
+          
+          # Merge with original data
+          merged_data <- daily_data %>%
+            left_join(idx_data, by = "date")
+          
+          # Fill missing values using last observation carried forward
+          merged_data <- merged_data %>%
+            mutate(
+              value = na.locf(value, na.rm = FALSE),
+              index_id = first(na.omit(index_id)),
+              index_name = first(na.omit(index_name))
+            ) %>%
+            filter(!is.na(value))
+          
+          # Replace the original data
+          idx_data <- merged_data
         }
         
         # Store in list
@@ -235,34 +242,137 @@ tryCatch({
   # Add metadata about when the data was retrieved
   combined_data$data_retrieved <- Sys.Date()
   
-  # Merge with existing data
-  existing_data <- read.csv(
-      "https://raw.githubusercontent.com/jhelvy/presidential-econ-tracker/refs/heads/main/market_data.csv",
-      stringsAsFactors = FALSE
-  )
+  # # Create a backup of existing data if it exists
+  # existing_data_file <- "market_data.csv"
+  # if (file.exists(existing_data_file)) {
+  #   backup_file <- paste0("market_data_backup_", format(Sys.Date(), "%Y%m%d"), ".csv")
+  #   file.copy(existing_data_file, backup_file, overwrite = TRUE)
+  #   message(paste("Created backup of existing data:", backup_file))
+  # }
+  
+  # Load existing data or create empty data frame if file doesn't exist
+  if (file.exists(existing_data_file)) {
+    existing_data <- tryCatch({
+      read.csv(existing_data_file, stringsAsFactors = FALSE)
+    }, error = function(e) {
+      warning(paste("Error reading existing data file:", e$message))
+      # Return empty data frame with same structure
+      return(data.frame(
+        date = character(0),
+        value = numeric(0),
+        index_id = character(0),
+        index_name = character(0),
+        data_retrieved = character(0),
+        stringsAsFactors = FALSE
+      ))
+    })
+  } else {
+    # Try loading from GitHub if local file doesn't exist
+    existing_data <- tryCatch({
+      read.csv(
+        "https://raw.githubusercontent.com/jhelvy/presidential-econ-tracker/refs/heads/main/market_data.csv",
+        stringsAsFactors = FALSE
+      )
+    }, error = function(e) {
+      warning(paste("Could not load data from GitHub:", e$message))
+      # Return empty data frame with same structure
+      return(data.frame(
+        date = character(0),
+        value = numeric(0),
+        index_id = character(0),
+        index_name = character(0),
+        data_retrieved = character(0),
+        stringsAsFactors = FALSE
+      ))
+    })
+  }
   
   # Convert date columns to Date objects for comparison
-  existing_data$date <- as.Date(existing_data$date)
-  existing_data$data_retrieved <- as.Date(existing_data$data_retrieved)
+  if (nrow(existing_data) > 0) {
+    existing_data$date <- as.Date(existing_data$date)
+    existing_data$data_retrieved <- as.Date(existing_data$data_retrieved)
+  }
   
-  # Identify new data (dates not in existing data)
-  new_data <- combined_data %>%
-      filter(!date %in% existing_data$date)
+  # For new indices, we need to get all historical data
+  existing_indices <- unique(existing_data$index_id)
+  new_indices <- setdiff(unique(combined_data$index_id), existing_indices)
   
-  if (nrow(new_data) > 0) {
+  if (length(new_indices) > 0) {
+    message(paste("Found new indices:", paste(new_indices, collapse = ", ")))
+    
+    # For new indices, keep all data
+    new_indices_data <- combined_data %>%
+      filter(index_id %in% new_indices)
+    
+    # For existing indices, identify new dates only
+    existing_indices_data <- combined_data %>%
+      filter(index_id %in% existing_indices)
+    
+    # Create a unique identifier for each row by combining index_id and date
+    existing_data$row_id <- paste(existing_data$index_id, existing_data$date, sep = "_")
+    existing_indices_data$row_id <- paste(existing_indices_data$index_id, existing_indices_data$date, sep = "_")
+    
+    # Find new data points for existing indices
+    new_data_existing_indices <- existing_indices_data %>%
+      filter(!(row_id %in% existing_data$row_id)) %>%
+      select(-row_id)  # Remove the temporary identifier
+    
+    # Remove the temporary identifier from existing data too
+    existing_data <- existing_data %>% select(-row_id)
+    
+    # Combine new index data with new data for existing indices
+    new_data <- bind_rows(new_indices_data, new_data_existing_indices)
+    
+    if (nrow(new_data) > 0) {
       message(paste("Found", nrow(new_data), "new data points to add"))
       
       # Merge existing and new data
       updated_data <- bind_rows(existing_data, new_data) %>%
-          arrange(index_id, date)
+        arrange(index_id, date)
       
       # Save the updated data
-      write.csv(updated_data, "market_data.csv", row.names = FALSE)
-      message("Data collection complete. Updated market_data.csv with new data.")
+      write.csv(updated_data, existing_data_file, row.names = FALSE)
+      message(paste("Data collection complete. Updated", existing_data_file, "with new data."))
+    } else {
+      message("No new data found for existing indices.")
+      
+      # Still need to add the new indices
+      updated_data <- bind_rows(existing_data, new_indices_data) %>%
+        arrange(index_id, date)
+      
+      # Save the updated data
+      write.csv(updated_data, existing_data_file, row.names = FALSE)
+      message(paste("Added new indices to", existing_data_file))
+    }
   } else {
-      message("No new data found. Keeping existing market_data.csv file.")
-  }
+    # No new indices, just check for new dates
+    # Create a unique identifier for each row by combining index_id and date
+    existing_data$row_id <- paste(existing_data$index_id, existing_data$date, sep = "_")
+    combined_data$row_id <- paste(combined_data$index_id, combined_data$date, sep = "_")
     
+    # Identify new data (dates not in existing data)
+    new_data <- combined_data %>%
+      filter(!(row_id %in% existing_data$row_id)) %>%
+      select(-row_id)  # Remove the temporary identifier
+    
+    # Remove the temporary identifier from existing data too
+    existing_data <- existing_data %>% select(-row_id)
+    
+    if (nrow(new_data) > 0) {
+      message(paste("Found", nrow(new_data), "new data points to add"))
+      
+      # Merge existing and new data
+      updated_data <- bind_rows(existing_data, new_data) %>%
+        arrange(index_id, date)
+      
+      # Save the updated data
+      write.csv(updated_data, existing_data_file, row.names = FALSE)
+      message(paste("Data collection complete. Updated", existing_data_file, "with new data."))
+    } else {
+      message(paste("No new data found. Keeping existing", existing_data_file, "file."))
+    }
+  }
+  
 }, error = function(e) {
   stop(paste("Error in data collection process:", e$message))
 })
