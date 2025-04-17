@@ -281,15 +281,20 @@ get_y_axis_label <- function(selected_index) {
   )
 }
 
-# Function to get help text for an index (displayed conditionally)
+# Function to get help text for an index with source information
 get_index_help_text <- function(selected_index) {
   switch(selected_index,
-         "dxy" = "The US Dollar Index measures the dollar against a basket of foreign currencies. A rising value indicates a stronger dollar, which can be good for imports but challenging for exports.",
-         "treasury10yr" = "The 10-Year Treasury Yield reflects market expectations about future growth and inflation. Lower yields generally indicate economic pessimism or lower inflation expectations.",
-         "housing" = "The Case-Shiller Home Price Index tracks changes in the value of residential real estate nationwide.",
-         "gdp" = "Real Gross Domestic Product is the inflation-adjusted value of all goods and services produced by an economy.",
-         "debt_gdp" = "The Federal Debt to GDP Ratio shows government debt as a percentage of annual economic output, a measure of fiscal sustainability.",
-         "labor_participation" = "The Labor Force Participation Rate shows the percentage of the population that is either employed or actively seeking employment.",
+         "sp500" = "The S&P 500 is a stock market index tracking the performance of 500 large companies listed on U.S. exchanges. Source: Standard & Poor's.",
+         "djia" = "The Dow Jones Industrial Average is a price-weighted index of 30 significant stocks traded on the NYSE and NASDAQ. Source: S&P Dow Jones Indices.",
+         "nasdaq" = "The NASDAQ Composite Index includes all companies listed on the NASDAQ stock market, weighted by market capitalization. Source: NASDAQ, Inc.",
+         "dxy" = "The US Dollar Index measures the dollar against a basket of foreign currencies. A rising value indicates a stronger dollar, which can be good for imports but challenging for exports. Source: ICE Futures U.S.",
+         "unemployment" = "The Unemployment Rate represents the percentage of the labor force that is unemployed but actively seeking employment. Source: U.S. Bureau of Labor Statistics.",
+         "inflation" = "The Inflation Rate measures the year-over-year percentage change in consumer prices as captured by the Consumer Price Index (CPI). Source: U.S. Bureau of Labor Statistics.",
+         "treasury10yr" = "The 10-Year Treasury Yield reflects market expectations about future growth and inflation. Lower yields generally indicate economic pessimism or lower inflation expectations. Source: U.S. Department of the Treasury.",
+         "housing" = "The Case-Shiller Home Price Index tracks changes in the value of residential real estate nationwide. Source: S&P CoreLogic.",
+         "gdp" = "Real Gross Domestic Product is the inflation-adjusted value of all goods and services produced by an economy. Source: U.S. Bureau of Economic Analysis.",
+         "debt_gdp" = "The Federal Debt to GDP Ratio shows government debt as a percentage of annual economic output, a measure of fiscal sustainability. Source: U.S. Treasury and Bureau of Economic Analysis.",
+         "labor_participation" = "The Labor Force Participation Rate shows the percentage of the population that is either employed or actively seeking employment. Source: U.S. Bureau of Labor Statistics.",
          ""  # Default - no special help text
   )
 }
@@ -349,15 +354,17 @@ ui <- fluidPage(
       ),
       
       # President checkboxes (dynamic)
-      uiOutput("president_selection"),
-      
-      # Conditional help text for indices
-      uiOutput("index_help_text")
+      uiOutput("president_selection")
     ),
     
     # Main content
     mainPanel(
-      plotlyOutput("economic_plot", height = "100%"),
+      # Add the info box above the plot for indicator descriptions
+      uiOutput("index_info_box"),
+
+      # Plot or "No Data" message
+      uiOutput("plot_or_message"),
+
       div(
         style = "display: flex; justify-content: flex-end; margin-top: 10px;",
         actionButton("export_plot", "Export Plot", class = "btn-sm"),
@@ -431,15 +438,15 @@ server <- function(input, output, session) {
                        selected = head(presidents, 4)) # Select the first 4 presidents in the reversed list (most recent)
   })
   
-  # Render help text for specific indices
-  output$index_help_text <- renderUI({
+  # Render indicator info box above the plot
+  output$index_info_box <- renderUI({
     selected_index <- input$selected_index
     help_text <- get_index_help_text(selected_index)
     
     if (help_text != "") {
       div(
-        style = "margin-top: 15px; padding: 10px; background-color: #f8f9fa; border-radius: 5px; font-size: 0.9em;",
-        tags$i(class = "fa fa-info-circle"), " ", help_text
+        style = "margin-bottom: 15px; padding: 12px; background-color: #f8f9fa; border-left: 4px solid #007bff; border-radius: 5px;",
+        HTML(help_text)
       )
     }
   })
@@ -532,7 +539,7 @@ server <- function(input, output, session) {
           box.padding = 0.5,
           show.legend = FALSE
         ) +
-        scale_color_manual(values = party_colors) +
+        scale_color_manual(values = party_colors, labels = c("Democratic", "Republican")) +
         labs(
           title = paste(index_name, "Since", ref_type),
           subtitle = paste0("Showing first ", input$time_period, " days"),
@@ -583,7 +590,7 @@ server <- function(input, output, session) {
           show.legend = FALSE
         ) +
         geom_hline(yintercept = 0, linetype = "dashed", color = "gray50") +
-        scale_color_manual(values = party_colors) +
+        scale_color_manual(values = party_colors, labels = c("Democratic", "Republican")) +
         labs(
           title = paste(index_name, "Performance Since", ref_type),
           subtitle = paste0("Showing first ", input$time_period, " days (0% = value on reference date)"),
@@ -603,84 +610,188 @@ server <- function(input, output, session) {
       return(p)
     }
   })
-  
+
+  # Check if we have valid data to plot
+  has_data_to_plot <- reactive({
+    plot_data <- processed_data()
+    # More robust check - ensure we have actual data points for at least one president
+    return(!is.null(plot_data) && nrow(plot_data) > 0 &&
+           length(unique(plot_data$president)) > 0 &&
+           # For percent change indices, make sure we have valid percent_change values
+           (!input$selected_index %in% index_types$percent_change || any(!is.na(plot_data$percent_change))))
+  })
+
+  # Render either the plot or a "no data" message
+  output$plot_or_message <- renderUI({
+    if (has_data_to_plot()) {
+      # We have data - show the plot
+      tagList(
+        plotlyOutput("economic_plot", height = "100%")
+      )
+    } else {
+      # No data - show a message
+      ref_type <- if (input$reference_date == "inauguration") {
+        "Inauguration Day"
+      } else {
+        "Day Before Election"
+      }
+
+      index_display_name <- switch(input$selected_index,
+                                "sp500" = "S&P 500",
+                                "djia" = "Dow Jones",
+                                "nasdaq" = "NASDAQ",
+                                "dxy" = "US Dollar Index",
+                                "unemployment" = "Unemployment Rate",
+                                "inflation" = "Inflation Rate",
+                                "treasury10yr" = "10-Year Treasury Yield",
+                                "housing" = "Home Price Index",
+                                "gdp" = "Real GDP",
+                                "debt_gdp" = "Federal Debt to GDP Ratio",
+                                "labor_participation" = "Labor Force Participation Rate")
+
+      tagList(
+        div(
+          style = "height: 400px; display: flex; flex-direction: column; justify-content: center; align-items: center; background-color: #f8f9fa; border-radius: 10px; padding: 20px; text-align: center;",
+          tags$h4("Insufficient Data Available", style = "margin-bottom: 15px; color: #6c757d;"),
+          tags$p("There is not enough data available for the selected combination of:", style = "margin-bottom: 10px;"),
+          tags$ul(
+            style = "list-style-type: none; padding: 0;",
+            tags$li(paste("• Indicator:", index_display_name), style = "margin-bottom: 5px;"),
+            tags$li(paste("• Reference date:", ref_type), style = "margin-bottom: 5px;"),
+            tags$li(paste("• Time period:", input$time_period, "days"), style = "margin-bottom: 5px;"),
+            tags$li(paste("• Selected presidents:", paste(input$selected_presidents, collapse = ", ")), style = "margin-bottom: 5px;")
+          ),
+          tags$p("Try one of the following:", style = "margin-top: 15px; font-weight: bold;"),
+          tags$ul(
+            style = "list-style-type: none; padding: 0;",
+            tags$li("• Change the reference date", style = "margin-bottom: 5px;"),
+            tags$li("• Select different presidents", style = "margin-bottom: 5px;"),
+            tags$li("• Choose a different time period", style = "margin-bottom: 5px;"),
+            tags$li("• Select a different economic indicator", style = "margin-bottom: 5px;")
+          )
+        )
+      )
+    }
+  })
+
   # Render the plot - using direct plotly for better performance
   output$economic_plot <- renderPlotly({
     # Get processed data
     plot_data <- processed_data()
-    
-    # Handle empty DXY data case
-    if (input$selected_index == "dxy" && (is.null(plot_data) || nrow(plot_data) == 0)) {
-      # Return an empty plot with error message
-      return(plot_ly() %>%
-        add_annotations(
-          x = 0.5,
-          y = 0.5,
-          text = "No data available for US Dollar Index.<br>Try selecting another indicator or a different time period.",
-          showarrow = FALSE,
-          font = list(size = 14)
-        ) %>%
-        layout(
-          title = "US Dollar Index Data Not Available",
-          xaxis = list(visible = FALSE, range = c(0, 1)),
-          yaxis = list(visible = FALSE, range = c(0, 1))
-        )
-      )
-    }
-    
+
     # Make sure there's data to plot
     req(nrow(plot_data) > 0)
-    
+
     # Reference type for title
     ref_type <- if (input$reference_date == "inauguration") {
       "Inauguration Day"
     } else {
       "Day Before Election"
     }
-    
+
     # Define party colors
     party_colors <- c("Democratic" = "blue", "Republican" = "red")
-    
+
     # Get y-axis label
     y_axis_label <- get_y_axis_label(input$selected_index)
-    
+
     if (input$selected_index %in% index_types$absolute) {
       # Plot for economic indicators (absolute values)
       index_name <- unique(plot_data$index_name)[1]
-      
+
       # First create the basic plot structure
       p <- plot_ly()
-      
+
       # Process end points first for label creation
       end_points <- plot_data %>%
         group_by(president, party) %>%
         slice(which.max(day)) %>%
         ungroup()
-      
-      # Add each president's data as a separate trace
-      presidents <- unique(plot_data$president)
-      for (pres in presidents) {
-        pres_data <- plot_data %>% filter(president == pres)
-        
-        # Get end point data for this president
-        end_point <- end_points %>% filter(president == pres)
-        
-        p <- p %>% add_trace(
-          data = pres_data,
-          x = ~day,
-          y = ~value,
-          name = pres,
-          color = ~party,
-          colors = party_colors,
-          type = 'scatter',
-          mode = 'lines',
-          hoverinfo = 'text',
-          text = ~paste0(president, "<br>Day: ", day, "<br>Value: ", round(value, 2)),
-          line = list(width = 2),
-          showlegend = FALSE # Remove legend
-        )
+
+      # Create a list to store traces for each party
+      democratic_data <- plot_data %>% filter(party == "Democratic")
+      republican_data <- plot_data %>% filter(party == "Republican")
+
+      # Add Democratic party trace if we have data
+      if (nrow(democratic_data) > 0) {
+        dem_presidents <- unique(democratic_data$president)
+
+        for (pres in dem_presidents) {
+          pres_data <- democratic_data %>% filter(president == pres)
+
+          p <- p %>% add_trace(
+            data = pres_data,
+            x = ~day,
+            y = ~value,
+            name = pres,
+            legendgroup = "Democratic",
+            showlegend = FALSE, # Only show in party legend
+            color = I("blue"),
+            type = 'scatter',
+            mode = 'lines',
+            hoverinfo = 'text',
+            text = ~paste0(president, "<br>Day: ", day, "<br>Value: ", round(value, 2)),
+            line = list(width = 2)
+          )
+        }
+
+        # Add a single legend entry for Democratic party
+        if (nrow(democratic_data) > 0) {
+          p <- p %>% add_trace(
+            x = c(0),
+            y = c(0),
+            name = "Democratic",
+            legendgroup = "Democratic",
+            showlegend = TRUE,
+            color = I("blue"),
+            type = 'scatter',
+            mode = 'lines',
+            line = list(width = 4),
+            visible = 'legendonly' # This makes the trace invisible but keeps the legend
+          )
+        }
       }
-      
+
+      # Add Republican party trace if we have data
+      if (nrow(republican_data) > 0) {
+        rep_presidents <- unique(republican_data$president)
+
+        for (pres in rep_presidents) {
+          pres_data <- republican_data %>% filter(president == pres)
+
+          p <- p %>% add_trace(
+            data = pres_data,
+            x = ~day,
+            y = ~value,
+            name = pres,
+            legendgroup = "Republican",
+            showlegend = FALSE, # Only show in party legend
+            color = I("red"),
+            type = 'scatter',
+            mode = 'lines',
+            hoverinfo = 'text',
+            text = ~paste0(president, "<br>Day: ", day, "<br>Value: ", round(value, 2)),
+            line = list(width = 2)
+          )
+        }
+
+        # Add a single legend entry for Republican party
+        if (nrow(republican_data) > 0) {
+          p <- p %>% add_trace(
+            x = c(0),
+            y = c(0),
+            name = "Republican",
+            legendgroup = "Republican",
+            showlegend = TRUE,
+            color = I("red"),
+            type = 'scatter',
+            mode = 'lines',
+            line = list(width = 4),
+            visible = 'legendonly' # This makes the trace invisible but keeps the legend
+          )
+        }
+      }
+
       # Add layout
       p <- p %>% layout(
         title = list(
@@ -696,13 +807,13 @@ server <- function(input, output, session) {
           range = if(input$selected_index == "unemployment") c(0, max(plot_data$value) * 1.1) else NULL
         ),
         legend = list(
-          title = list(text = ""),
+          title = list(text = "Party"),
           orientation = "h",
           y = -0.2
         ),
         margin = list(r = 100)
       )
-      
+
       # Add individual annotations for each president
       for (i in 1:nrow(end_points)) {
         p <- p %>% add_annotations(
@@ -720,46 +831,106 @@ server <- function(input, output, session) {
           ay = 0
         )
       }
-      
+
       p %>% config(displayModeBar = TRUE)
-      
+
     } else {
       # Plot for market indices (percent change)
       index_name <- unique(plot_data$index_name)[1]
-      
+
       # First create the basic plot structure
       p <- plot_ly()
-      
+
       # Process end points first for label creation
       end_points <- plot_data %>%
         group_by(president, party) %>%
         slice(which.max(day)) %>%
         ungroup()
-      
-      # Add each president's data as a separate trace
-      presidents <- unique(plot_data$president)
-      for (pres in presidents) {
-        pres_data <- plot_data %>% filter(president == pres)
-        
-        # Get end point data for this president
-        end_point <- end_points %>% filter(president == pres)
-        
-        p <- p %>% add_trace(
-          data = pres_data,
-          x = ~day,
-          y = ~percent_change,
-          name = pres,
-          color = ~party,
-          colors = party_colors,
-          type = 'scatter',
-          mode = 'lines',
-          hoverinfo = 'text',
-          text = ~paste0(president, "<br>Day: ", day, "<br>Change: ", round(percent_change, 2), "%"),
-          line = list(width = 2),
-          showlegend = FALSE # Remove legend
-        )
+
+      # Create a list to store traces for each party
+      democratic_data <- plot_data %>% filter(party == "Democratic")
+      republican_data <- plot_data %>% filter(party == "Republican")
+
+      # Add Democratic party trace if we have data
+      if (nrow(democratic_data) > 0) {
+        dem_presidents <- unique(democratic_data$president)
+
+        for (pres in dem_presidents) {
+          pres_data <- democratic_data %>% filter(president == pres)
+
+          p <- p %>% add_trace(
+            data = pres_data,
+            x = ~day,
+            y = ~percent_change,
+            name = pres,
+            legendgroup = "Democratic",
+            showlegend = FALSE, # Only show in party legend
+            color = I("blue"),
+            type = 'scatter',
+            mode = 'lines',
+            hoverinfo = 'text',
+            text = ~paste0(president, "<br>Day: ", day, "<br>Change: ", round(percent_change, 2), "%"),
+            line = list(width = 2)
+          )
+        }
+
+        # Add a single legend entry for Democratic party
+        if (nrow(democratic_data) > 0) {
+          p <- p %>% add_trace(
+            x = c(0),
+            y = c(0),
+            name = "Democratic",
+            legendgroup = "Democratic",
+            showlegend = TRUE,
+            color = I("blue"),
+            type = 'scatter',
+            mode = 'lines',
+            line = list(width = 4),
+            visible = 'legendonly' # This makes the trace invisible but keeps the legend
+          )
+        }
       }
-      
+
+      # Add Republican party trace if we have data
+      if (nrow(republican_data) > 0) {
+        rep_presidents <- unique(republican_data$president)
+
+        for (pres in rep_presidents) {
+          pres_data <- republican_data %>% filter(president == pres)
+
+          p <- p %>% add_trace(
+            data = pres_data,
+            x = ~day,
+            y = ~percent_change,
+            name = pres,
+            legendgroup = "Republican",
+            showlegend = FALSE, # Only show in party legend
+            color = I("red"),
+            type = 'scatter',
+            mode = 'lines',
+            hoverinfo = 'text',
+            text = ~paste0(president, "<br>Day: ", day, "<br>Change: ", round(percent_change, 2), "%"),
+            line = list(width = 2)
+          )
+        }
+
+        # Add a single legend entry for Republican party
+        if (nrow(republican_data) > 0) {
+          p <- p %>% add_trace(
+            x = c(0),
+            y = c(0),
+            name = "Republican",
+            legendgroup = "Republican",
+            showlegend = TRUE,
+            color = I("red"),
+            type = 'scatter',
+            mode = 'lines',
+            line = list(width = 4),
+            visible = 'legendonly' # This makes the trace invisible but keeps the legend
+          )
+        }
+      }
+
       # Add layout
       p <- p %>% layout(
         title = list(
@@ -790,13 +961,13 @@ server <- function(input, output, session) {
           )
         ),
         legend = list(
-          title = list(text = ""),
+          title = list(text = "Party"),
           orientation = "h",
           y = -0.2
         ),
         margin = list(r = 100)
       )
-      
+
       # Add individual annotations for each president
       for (i in 1:nrow(end_points)) {
         p <- p %>% add_annotations(
@@ -814,10 +985,11 @@ server <- function(input, output, session) {
           ay = 0
         )
       }
-      
+
       p %>% config(displayModeBar = TRUE)
     }
   })
+
   
   # Handle select all button
   observeEvent(input$select_all, {
