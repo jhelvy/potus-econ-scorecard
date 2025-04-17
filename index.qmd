@@ -653,14 +653,6 @@ server <- function(input, output, session) {
         div(
           style = "height: 400px; display: flex; flex-direction: column; justify-content: center; align-items: center; background-color: #f8f9fa; border-radius: 10px; padding: 20px; text-align: center;",
           tags$h4("Insufficient Data Available", style = "margin-bottom: 15px; color: #6c757d;"),
-          tags$p("There is not enough data available for the selected combination of:", style = "margin-bottom: 10px;"),
-          tags$ul(
-            style = "list-style-type: none; padding: 0;",
-            tags$li(paste("• Indicator:", index_display_name), style = "margin-bottom: 5px;"),
-            tags$li(paste("• Reference date:", ref_type), style = "margin-bottom: 5px;"),
-            tags$li(paste("• Time period:", input$time_period, "days"), style = "margin-bottom: 5px;"),
-            tags$li(paste("• Selected presidents:", paste(input$selected_presidents, collapse = ", ")), style = "margin-bottom: 5px;")
-          ),
           tags$p("Try one of the following:", style = "margin-top: 15px; font-weight: bold;"),
           tags$ul(
             style = "list-style-type: none; padding: 0;",
