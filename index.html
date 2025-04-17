@@ -186,9 +186,6 @@ load_presidents_data &lt;- function() {
     presidents_data$inauguration_date &lt;- as.Date(presidents_data$inauguration_date)
     presidents_data$election_date &lt;- as.Date(presidents_data$election_date)
 
-    # Write once for use in get_data.R
-    # readr::write_csv(presidents_data, "presidents_data.csv")
-
     return(presidents_data)
 }
 
@@ -220,6 +217,17 @@ load_data &lt;- function() {
       presidents_data = data.frame()
     ))
   })
+}
+
+# Define which indices should use percent change vs absolute values
+get_index_types &lt;- function() {
+  list(
+    # Market indices - use percent change
+    percent_change = c("sp500", "djia", "nasdaq", "dxy"),
+    
+    # Economic indicators - use absolute values
+    absolute = c("unemployment", "inflation", "treasury10yr", "housing", "gdp", "debt_gdp", "labor_participation")
+  )
 }
 
 # Function to process market data for selected presidents and reference date
@@ -375,6 +383,42 @@ process_econ_data &lt;- function(market_data,
   return(result_data)
 }
 
+# Function to get the appropriate y-axis label for an index
+get_y_axis_label &lt;- function(selected_index) {
+  switch(selected_index,
+         "sp500" = "Percent Change (%)",
+         "djia" = "Percent Change (%)",
+         "nasdaq" = "Percent Change (%)",
+         "dxy" = "Percent Change (%)",
+         "unemployment" = "Unemployment Rate (%)",
+         "inflation" = "Inflation Rate (YoY %)",
+         "treasury10yr" = "10-Year Treasury Yield (%)",
+         "housing" = "Home Price Index",
+         "gdp" = "Real GDP (Billions of 2017 $)",
+         "debt_gdp" = "Federal Debt to GDP Ratio (%)",
+         "labor_participation" = "Labor Force Participation Rate (%)",
+         "Percent Change (%)"  # Default
+  )
+}
+
+# Function to get help text for an index with source information
+get_index_help_text &lt;- function(selected_index) {
+  switch(selected_index,
+         "sp500" = "The S&amp;P 500 is a stock market index tracking the performance of 500 large companies listed on U.S. exchanges. Source: Standard &amp; Poor's.",
+         "djia" = "The Dow Jones Industrial Average is a price-weighted index of 30 significant stocks traded on the NYSE and NASDAQ. Source: S&amp;P Dow Jones Indices.",
+         "nasdaq" = "The NASDAQ Composite Index includes all companies listed on the NASDAQ stock market, weighted by market capitalization. Source: NASDAQ, Inc.",
+         "dxy" = "The US Dollar Index measures the dollar against a basket of foreign currencies. A rising value indicates a stronger dollar, which can be good for imports but challenging for exports. Source: ICE Futures U.S.",
+         "unemployment" = "The Unemployment Rate represents the percentage of the labor force that is unemployed but actively seeking employment. Source: U.S. Bureau of Labor Statistics.",
+         "inflation" = "The Inflation Rate measures the year-over-year percentage change in consumer prices as captured by the Consumer Price Index (CPI). Source: U.S. Bureau of Labor Statistics.",
+         "treasury10yr" = "The 10-Year Treasury Yield reflects market expectations about future growth and inflation. Lower yields generally indicate economic pessimism or lower inflation expectations. Source: U.S. Department of the Treasury.",
+         "housing" = "The Case-Shiller Home Price Index tracks changes in the value of residential real estate nationwide. Source: S&amp;P CoreLogic.",
+         "gdp" = "Real Gross Domestic Product is the inflation-adjusted value of all goods and services produced by an economy. Source: U.S. Bureau of Economic Analysis.",
+         "debt_gdp" = "The Federal Debt to GDP Ratio shows government debt as a percentage of annual economic output, a measure of fiscal sustainability. Source: U.S. Treasury and Bureau of Economic Analysis.",
+         "labor_participation" = "The Labor Force Participation Rate shows the percentage of the population that is either employed or actively seeking employment. Source: U.S. Bureau of Labor Statistics.",
+         ""  # Default - no special help text
+  )
+}
+
 #-------------------------------------------
 # UI Definition ----
 #-------------------------------------------
@@ -388,11 +432,20 @@ ui &lt;- fluidPage(
       # Index selection
       radioButtons("selected_index", "Select Economic Indicator:",
                    choices = list(
+                     # Market Indices
                      "S&amp;P 500" = "sp500", 
                      "Dow Jones" = "djia",
                      "NASDAQ" = "nasdaq",
+                     "US Dollar Index" = "dxy",
+                     
+                     # Economic Indicators
                      "Unemployment Rate" = "unemployment",
-                     "Inflation Rate" = "inflation"
+                     "Inflation Rate" = "inflation",
+                     "10-Year Treasury Yield" = "treasury10yr",
+                     "Home Price Index" = "housing",
+                     "Real GDP" = "gdp",
+                     "Federal Debt to GDP Ratio" = "debt_gdp",
+                     "Labor Force Participation" = "labor_participation"
                    ),
                    selected = "sp500"),
       
@@ -407,7 +460,6 @@ ui &lt;- fluidPage(
       # Time period selection
       sliderInput("time_period", "Days to Display:",
                   min = 10, max = 365*4, value = 100, step = 10),
-      
       
       # Party filter
       checkboxGroupInput("party_filter", "Filter by Party:",
@@ -427,7 +479,12 @@ ui &lt;- fluidPage(
     
     # Main content
     mainPanel(
-      plotlyOutput("economic_plot", height = "100%"),
+      # Add the info box above the plot for indicator descriptions
+      uiOutput("index_info_box"),
+
+      # Plot or "No Data" message
+      uiOutput("plot_or_message"),
+
       div(
         style = "display: flex; justify-content: flex-end; margin-top: 10px;",
         actionButton("export_plot", "Export Plot", class = "btn-sm"),
@@ -467,6 +524,9 @@ server &lt;- function(input, output, session) {
     removeModal()
   })
   
+  # Index types
+  index_types &lt;- get_index_types()
+  
   # Update default days depending on starting reference point
   observeEvent(input$reference_date, {
     # Calculate appropriate default days based on reference type
@@ -474,7 +534,6 @@ server &lt;- function(input, output, session) {
       100  # Default for inauguration
     } else {
       180  # Default for election (includes transition period + first 100 days)
-      # You can adjust this value as needed
     }
     
     # Update the slider with the new default value
@@ -499,6 +558,19 @@ server &lt;- function(input, output, session) {
                        selected = head(presidents, 4)) # Select the first 4 presidents in the reversed list (most recent)
   })
   
+  # Render indicator info box above the plot
+  output$index_info_box &lt;- renderUI({
+    selected_index &lt;- input$selected_index
+    help_text &lt;- get_index_help_text(selected_index)
+    
+    if (help_text != "") {
+      div(
+        style = "margin-bottom: 15px; padding: 12px; background-color: #f8f9fa; border-left: 4px solid #007bff; border-radius: 5px;",
+        HTML(help_text)
+      )
+    }
+  })
+  
   # Process data based on user selections
   processed_data &lt;- reactive({
     # Get data
@@ -515,7 +587,7 @@ server &lt;- function(input, output, session) {
     days_to_show &lt;- input$time_period
     
     # Choose the appropriate processing function based on the selected index
-    if (selected_index %in% c("unemployment", "inflation")) {
+    if (selected_index %in% index_types$absolute) {
       # For economic indicators, use absolute values
       return(process_econ_data(
         data$market_data,
@@ -540,8 +612,8 @@ server &lt;- function(input, output, session) {
     }
   })
   
-  # Render the plot
-  output$economic_plot &lt;- renderPlotly({
+  # Create the ggplot object for the selected data (used for export)
+  create_ggplot &lt;- reactive({
     # Get processed data
     plot_data &lt;- processed_data()
     
@@ -558,7 +630,10 @@ server &lt;- function(input, output, session) {
     # Define party colors
     party_colors &lt;- c("Democratic" = "blue", "Republican" = "red")
     
-    if (input$selected_index %in% c("unemployment", "inflation")) {
+    # Get y-axis label
+    y_axis_label &lt;- get_y_axis_label(input$selected_index)
+    
+    if (input$selected_index %in% index_types$absolute) {
       # Plot for economic indicators (absolute values)
       index_name &lt;- unique(plot_data$index_name)[1]
       
@@ -569,16 +644,27 @@ server &lt;- function(input, output, session) {
         mutate(label = paste0(president, " (", round(value, 1), ")"))
       
       # Create base ggplot with enhanced tooltips
-      p &lt;- ggplot(plot_data, aes(x = day, y = value, color = party, group = president, 
-                                 text = paste0(president, "&lt;br&gt;Day: ", day, "&lt;br&gt;Value: ", round(value, 2)))) +
+      p &lt;- ggplot(plot_data, aes(x = day, y = value, color = party, group = president)) +
         geom_line(size = 1, alpha = 0.8) +
         geom_point(data = end_points, size = 3) +
-        scale_color_manual(values = party_colors) +
+        geom_text_repel(
+          data = end_points,
+          aes(label = label),
+          direction = "y",
+          hjust = 0,
+          vjust = 0,
+          nudge_x = 15,
+          force = 3,
+          segment.size = 0.2,
+          box.padding = 0.5,
+          show.legend = FALSE
+        ) +
+        scale_color_manual(values = party_colors, labels = c("Democratic", "Republican")) +
         labs(
           title = paste(index_name, "Since", ref_type),
           subtitle = paste0("Showing first ", input$time_period, " days"),
           x = paste("Days Since", ref_type),
-          y = index_name,
+          y = y_axis_label,
           color = "Party"  # Capitalize Party in legend
         ) +
         theme_minimal() +
@@ -590,43 +676,12 @@ server &lt;- function(input, output, session) {
         # Add extra space on right for labels
         coord_cartesian(xlim = c(0, max(plot_data$day) * 1.3))
       
-      # For unemployment and inflation, we might want to set y-limits
+      # For unemployment and some other metrics, we might want to set y-limits
       if (input$selected_index == "unemployment") {
         p &lt;- p + ylim(0, max(plot_data$value) * 1.1)  # Ensure we start at 0 for unemployment
       }
       
-      # Convert to plotly
-      p_ly &lt;- ggplotly(p, tooltip = "text") %&gt;%
-        layout(
-          legend = list(orientation = "h", y = -0.2),
-          # Add more space on the right margin for labels
-          margin = list(r = 100)
-        )
-      
-      # Add annotations for each end point
-      for (i in 1:nrow(end_points)) {
-        point &lt;- end_points[i, ]
-        
-        p_ly &lt;- p_ly %&gt;% 
-          add_annotations(
-            x = point$day,
-            y = point$value,
-            text = point$label,
-            showarrow = TRUE,
-            arrowhead = 0,
-            arrowsize = 0.7,
-            arrowwidth = 1,
-            arrowcolor = "gray70",
-            xanchor = "left",
-            yanchor = "middle",
-            textangle = 0,
-            font = list(color = "black", size = 11),
-            ax = 50,
-            ay = 0
-          )
-      }
-      
-      return(p_ly)
+      return(p)
       
     } else {
       # Plot for a single market index (percent change)
@@ -639,17 +694,28 @@ server &lt;- function(input, output, session) {
         mutate(label = paste0(president, " (", round(percent_change, 1), "%)"))
       
       # Create base ggplot with enhanced tooltips
-      p &lt;- ggplot(plot_data, aes(x = day, y = percent_change, color = party, group = president, 
-                                 text = paste0(president, "&lt;br&gt;Day: ", day, "&lt;br&gt;Change: ", round(percent_change, 2), "%"))) +
+      p &lt;- ggplot(plot_data, aes(x = day, y = percent_change, color = party, group = president)) +
         geom_line(size = 1, alpha = 0.8) +
         geom_point(data = end_points, size = 3) +
+        geom_text_repel(
+          data = end_points,
+          aes(label = label),
+          direction = "y",
+          hjust = 0,
+          vjust = 0,
+          nudge_x = 15,
+          force = 3,
+          segment.size = 0.2,
+          box.padding = 0.5,
+          show.legend = FALSE
+        ) +
         geom_hline(yintercept = 0, linetype = "dashed", color = "gray50") +
-        scale_color_manual(values = party_colors) +
+        scale_color_manual(values = party_colors, labels = c("Democratic", "Republican")) +
         labs(
           title = paste(index_name, "Performance Since", ref_type),
           subtitle = paste0("Showing first ", input$time_period, " days (0% = value on reference date)"),
           x = paste("Days Since", ref_type),
-          y = "Percent Change (%)",
+          y = y_axis_label,
           color = "Party"  # Capitalize Party in legend
         ) +
         theme_minimal() +
@@ -661,48 +727,381 @@ server &lt;- function(input, output, session) {
         # Add extra space on right for labels
         coord_cartesian(xlim = c(0, max(plot_data$day) * 1.3))
       
-      # Convert to plotly
-      p_ly &lt;- ggplotly(p, tooltip = "text") %&gt;%
-        layout(
-          legend = list(orientation = "h", y = -0.2),
-          # Add more space on the right margin for labels
-          margin = list(r = 100)
-        )
-      
-      # Add zero line
-      p_ly &lt;- p_ly %&gt;% 
-        add_segments(x = 0, xend = max(plot_data$day) * 1.3, 
-                     y = 0, yend = 0,
-                     line = list(dash = "dash", color = "gray", width = 1),
-                     showlegend = FALSE, 
-                     hoverinfo = "none")
-      
-      # Add annotations manually for each end point
-      for (i in 1:nrow(end_points)) {
-        point &lt;- end_points[i, ]
-        
-        p_ly &lt;- p_ly %&gt;% 
-          add_annotations(
-            x = point$day,
-            y = point$percent_change,
-            text = point$label,  # Include percentage in label
-            showarrow = TRUE,
-            arrowhead = 0,
-            arrowsize = 0.7,
-            arrowwidth = 1,
-            arrowcolor = "gray70",
-            xanchor = "left",
-            yanchor = "middle",
-            textangle = 0,
-            font = list(color = "black", size = 11),
-            ax = 50,  # Increased offset for better visibility
-            ay = 0
-          )
-      }
-      
-      return(p_ly)
+      return(p)
     }
   })
+
+  # Check if we have valid data to plot
+  has_data_to_plot &lt;- reactive({
+    plot_data &lt;- processed_data()
+    # More robust check - ensure we have actual data points for at least one president
+    return(!is.null(plot_data) &amp;&amp; nrow(plot_data) &gt; 0 &amp;&amp;
+           length(unique(plot_data$president)) &gt; 0 &amp;&amp;
+           # For percent change indices, make sure we have valid percent_change values
+           (!input$selected_index %in% index_types$percent_change || any(!is.na(plot_data$percent_change))))
+  })
+
+  # Render either the plot or a "no data" message
+  output$plot_or_message &lt;- renderUI({
+    if (has_data_to_plot()) {
+      # We have data - show the plot
+      tagList(
+        plotlyOutput("economic_plot", height = "100%")
+      )
+    } else {
+      # No data - show a message
+      ref_type &lt;- if (input$reference_date == "inauguration") {
+        "Inauguration Day"
+      } else {
+        "Day Before Election"
+      }
+
+      index_display_name &lt;- switch(input$selected_index,
+                                "sp500" = "S&amp;P 500",
+                                "djia" = "Dow Jones",
+                                "nasdaq" = "NASDAQ",
+                                "dxy" = "US Dollar Index",
+                                "unemployment" = "Unemployment Rate",
+                                "inflation" = "Inflation Rate",
+                                "treasury10yr" = "10-Year Treasury Yield",
+                                "housing" = "Home Price Index",
+                                "gdp" = "Real GDP",
+                                "debt_gdp" = "Federal Debt to GDP Ratio",
+                                "labor_participation" = "Labor Force Participation Rate")
+
+      tagList(
+        div(
+          style = "height: 400px; display: flex; flex-direction: column; justify-content: center; align-items: center; background-color: #f8f9fa; border-radius: 10px; padding: 20px; text-align: center;",
+          tags$h4("Insufficient Data Available", style = "margin-bottom: 15px; color: #6c757d;"),
+          tags$p("Try one of the following:", style = "margin-top: 15px; font-weight: bold;"),
+          tags$ul(
+            style = "list-style-type: none; padding: 0;",
+            tags$li("• Change the reference date", style = "margin-bottom: 5px;"),
+            tags$li("• Select different presidents", style = "margin-bottom: 5px;"),
+            tags$li("• Choose a different time period", style = "margin-bottom: 5px;"),
+            tags$li("• Select a different economic indicator", style = "margin-bottom: 5px;")
+          )
+        )
+      )
+    }
+  })
+
+  # Render the plot - using direct plotly for better performance
+  output$economic_plot &lt;- renderPlotly({
+    # Get processed data
+    plot_data &lt;- processed_data()
+
+    # Make sure there's data to plot
+    req(nrow(plot_data) &gt; 0)
+
+    # Reference type for title
+    ref_type &lt;- if (input$reference_date == "inauguration") {
+      "Inauguration Day"
+    } else {
+      "Day Before Election"
+    }
+
+    # Define party colors
+    party_colors &lt;- c("Democratic" = "blue", "Republican" = "red")
+
+    # Get y-axis label
+    y_axis_label &lt;- get_y_axis_label(input$selected_index)
+
+    if (input$selected_index %in% index_types$absolute) {
+      # Plot for economic indicators (absolute values)
+      index_name &lt;- unique(plot_data$index_name)[1]
+
+      # First create the basic plot structure
+      p &lt;- plot_ly()
+
+      # Process end points first for label creation
+      end_points &lt;- plot_data %&gt;%
+        group_by(president, party) %&gt;%
+        slice(which.max(day)) %&gt;%
+        ungroup()
+
+      # Create a list to store traces for each party
+      democratic_data &lt;- plot_data %&gt;% filter(party == "Democratic")
+      republican_data &lt;- plot_data %&gt;% filter(party == "Republican")
+
+      # Add Democratic party trace if we have data
+      if (nrow(democratic_data) &gt; 0) {
+        dem_presidents &lt;- unique(democratic_data$president)
+
+        for (pres in dem_presidents) {
+          pres_data &lt;- democratic_data %&gt;% filter(president == pres)
+
+          p &lt;- p %&gt;% add_trace(
+            data = pres_data,
+            x = ~day,
+            y = ~value,
+            name = pres,
+            legendgroup = "Democratic",
+            showlegend = FALSE, # Only show in party legend
+            color = I("blue"),
+            type = 'scatter',
+            mode = 'lines',
+            hoverinfo = 'text',
+            text = ~paste0(president, "&lt;br&gt;Day: ", day, "&lt;br&gt;Value: ", round(value, 2)),
+            line = list(width = 2)
+          )
+        }
+
+        # Add a single legend entry for Democratic party
+        if (nrow(democratic_data) &gt; 0) {
+          p &lt;- p %&gt;% add_trace(
+            x = c(0),
+            y = c(0),
+            name = "Democratic",
+            legendgroup = "Democratic",
+            showlegend = TRUE,
+            color = I("blue"),
+            type = 'scatter',
+            mode = 'lines',
+            line = list(width = 4),
+            visible = 'legendonly' # This makes the trace invisible but keeps the legend
+          )
+        }
+      }
+
+      # Add Republican party trace if we have data
+      if (nrow(republican_data) &gt; 0) {
+        rep_presidents &lt;- unique(republican_data$president)
+
+        for (pres in rep_presidents) {
+          pres_data &lt;- republican_data %&gt;% filter(president == pres)
+
+          p &lt;- p %&gt;% add_trace(
+            data = pres_data,
+            x = ~day,
+            y = ~value,
+            name = pres,
+            legendgroup = "Republican",
+            showlegend = FALSE, # Only show in party legend
+            color = I("red"),
+            type = 'scatter',
+            mode = 'lines',
+            hoverinfo = 'text',
+            text = ~paste0(president, "&lt;br&gt;Day: ", day, "&lt;br&gt;Value: ", round(value, 2)),
+            line = list(width = 2)
+          )
+        }
+
+        # Add a single legend entry for Republican party
+        if (nrow(republican_data) &gt; 0) {
+          p &lt;- p %&gt;% add_trace(
+            x = c(0),
+            y = c(0),
+            name = "Republican",
+            legendgroup = "Republican",
+            showlegend = TRUE,
+            color = I("red"),
+            type = 'scatter',
+            mode = 'lines',
+            line = list(width = 4),
+            visible = 'legendonly' # This makes the trace invisible but keeps the legend
+          )
+        }
+      }
+
+      # Add layout
+      p &lt;- p %&gt;% layout(
+        title = list(
+          text = paste(index_name, "Since", ref_type),
+          font = list(size = 16)
+        ),
+        xaxis = list(
+          title = paste("Days Since", ref_type),
+          range = c(0, max(plot_data$day) * 1.3)
+        ),
+        yaxis = list(
+          title = y_axis_label,
+          range = if(input$selected_index == "unemployment") c(0, max(plot_data$value) * 1.1) else NULL
+        ),
+        legend = list(
+          title = list(text = "Party"),
+          orientation = "h",
+          y = -0.2
+        ),
+        margin = list(r = 100)
+      )
+
+      # Add individual annotations for each president
+      for (i in 1:nrow(end_points)) {
+        p &lt;- p %&gt;% add_annotations(
+          x = end_points$day[i],
+          y = end_points$value[i],
+          text = paste0(end_points$president[i], " (", round(end_points$value[i], 1), ")"),
+          showarrow = TRUE,
+          arrowhead = 0,
+          arrowsize = 0.7,
+          arrowwidth = 1,
+          arrowcolor = "gray70",
+          xanchor = "left",
+          yanchor = "middle",
+          ax = 50,
+          ay = 0
+        )
+      }
+
+      p %&gt;% config(displayModeBar = TRUE)
+
+    } else {
+      # Plot for market indices (percent change)
+      index_name &lt;- unique(plot_data$index_name)[1]
+
+      # First create the basic plot structure
+      p &lt;- plot_ly()
+
+      # Process end points first for label creation
+      end_points &lt;- plot_data %&gt;%
+        group_by(president, party) %&gt;%
+        slice(which.max(day)) %&gt;%
+        ungroup()
+
+      # Create a list to store traces for each party
+      democratic_data &lt;- plot_data %&gt;% filter(party == "Democratic")
+      republican_data &lt;- plot_data %&gt;% filter(party == "Republican")
+
+      # Add Democratic party trace if we have data
+      if (nrow(democratic_data) &gt; 0) {
+        dem_presidents &lt;- unique(democratic_data$president)
+
+        for (pres in dem_presidents) {
+          pres_data &lt;- democratic_data %&gt;% filter(president == pres)
+
+          p &lt;- p %&gt;% add_trace(
+            data = pres_data,
+            x = ~day,
+            y = ~percent_change,
+            name = pres,
+            legendgroup = "Democratic",
+            showlegend = FALSE, # Only show in party legend
+            color = I("blue"),
+            type = 'scatter',
+            mode = 'lines',
+            hoverinfo = 'text',
+            text = ~paste0(president, "&lt;br&gt;Day: ", day, "&lt;br&gt;Change: ", round(percent_change, 2), "%"),
+            line = list(width = 2)
+          )
+        }
+
+        # Add a single legend entry for Democratic party
+        if (nrow(democratic_data) &gt; 0) {
+          p &lt;- p %&gt;% add_trace(
+            x = c(0),
+            y = c(0),
+            name = "Democratic",
+            legendgroup = "Democratic",
+            showlegend = TRUE,
+            color = I("blue"),
+            type = 'scatter',
+            mode = 'lines',
+            line = list(width = 4),
+            visible = 'legendonly' # This makes the trace invisible but keeps the legend
+          )
+        }
+      }
+
+      # Add Republican party trace if we have data
+      if (nrow(republican_data) &gt; 0) {
+        rep_presidents &lt;- unique(republican_data$president)
+
+        for (pres in rep_presidents) {
+          pres_data &lt;- republican_data %&gt;% filter(president == pres)
+
+          p &lt;- p %&gt;% add_trace(
+            data = pres_data,
+            x = ~day,
+            y = ~percent_change,
+            name = pres,
+            legendgroup = "Republican",
+            showlegend = FALSE, # Only show in party legend
+            color = I("red"),
+            type = 'scatter',
+            mode = 'lines',
+            hoverinfo = 'text',
+            text = ~paste0(president, "&lt;br&gt;Day: ", day, "&lt;br&gt;Change: ", round(percent_change, 2), "%"),
+            line = list(width = 2)
+          )
+        }
+
+        # Add a single legend entry for Republican party
+        if (nrow(republican_data) &gt; 0) {
+          p &lt;- p %&gt;% add_trace(
+            x = c(0),
+            y = c(0),
+            name = "Republican",
+            legendgroup = "Republican",
+            showlegend = TRUE,
+            color = I("red"),
+            type = 'scatter',
+            mode = 'lines',
+            line = list(width = 4),
+            visible = 'legendonly' # This makes the trace invisible but keeps the legend
+          )
+        }
+      }
+
+      # Add layout
+      p &lt;- p %&gt;% layout(
+        title = list(
+          text = paste(index_name, "Performance Since", ref_type),
+          font = list(size = 16)
+        ),
+        xaxis = list(
+          title = paste("Days Since", ref_type),
+          range = c(0, max(plot_data$day) * 1.3)
+        ),
+        yaxis = list(
+          title = y_axis_label,
+          zeroline = TRUE
+        ),
+        shapes = list(
+          # Add zero line
+          list(
+            type = "line",
+            x0 = 0,
+            x1 = max(plot_data$day) * 1.3,
+            y0 = 0,
+            y1 = 0,
+            line = list(
+              color = "gray",
+              width = 1,
+              dash = "dash"
+            )
+          )
+        ),
+        legend = list(
+          title = list(text = "Party"),
+          orientation = "h",
+          y = -0.2
+        ),
+        margin = list(r = 100)
+      )
+
+      # Add individual annotations for each president
+      for (i in 1:nrow(end_points)) {
+        p &lt;- p %&gt;% add_annotations(
+          x = end_points$day[i],
+          y = end_points$percent_change[i],
+          text = paste0(end_points$president[i], " (", round(end_points$percent_change[i], 1), "%)"),
+          showarrow = TRUE,
+          arrowhead = 0,
+          arrowsize = 0.7,
+          arrowwidth = 1,
+          arrowcolor = "gray70",
+          xanchor = "left",
+          yanchor = "middle",
+          ax = 50,
+          ay = 0
+        )
+      }
+
+      p %&gt;% config(displayModeBar = TRUE)
+    }
+  })
+
   
   # Handle select all button
   observeEvent(input$select_all, {
@@ -733,120 +1132,19 @@ server &lt;- function(input, output, session) {
   # Export plot handler - with embedded URL in caption and more right space
   observeEvent(input$export_plot, {
     req(processed_data())
-    plot_data &lt;- processed_data()
     
-    # Reference type for title
-    ref_type &lt;- if (input$reference_date == "inauguration") {
-      "Inauguration Day"
-    } else {
-      "Day Before Election"
-    }
+    # Use the ggplot object for export
+    p &lt;- create_ggplot()
     
-    # Define party colors
-    party_colors &lt;- c("Democratic" = "blue", "Republican" = "red")
-    
-    # Create a static plot with ggrepel labels for download
-    if (input$selected_index %in% c("unemployment", "inflation")) {
-      # Plot for economic indicators
-      index_name &lt;- unique(plot_data$index_name)[1]
-      
-      # Create end labels data
-      end_labels &lt;- plot_data %&gt;% 
-        group_by(president) %&gt;% 
-        filter(day == max(day)) %&gt;%
-        mutate(label = paste0(president, " (", round(value, 1), ")"))
-      
-      # Create ggplot with embedded URL in caption and more right space
-      p &lt;- ggplot(plot_data, aes(x = day, y = value, color = party, group = president)) +
-        geom_line(size = 1) +
-        geom_point(data = end_labels, size = 3) +
-        # Add end labels
-        geom_text_repel(
-          data = end_labels,
-          aes(label = label),
-          direction = "y",
-          hjust = 0,
-          vjust = 0,
-          nudge_x = 5,
-          force = 3,
-          segment.size = 0.2,
-          box.padding = 0.5,
-          show.legend = FALSE
-        ) +
-        scale_color_manual(values = party_colors) +
-        labs(
-          title = paste(index_name, "Since", ref_type),
-          subtitle = paste0("Showing first ", input$time_period, " days"),
-          x = paste("Days Since", ref_type),
-          y = index_name,
-          caption = paste0("Generated on ", Sys.Date(), " from https://jhelvy.github.io/potus-econ-scorecard/"),
-          color = "Party"
-        ) +
-        theme_minimal() +
-        theme(
-          plot.title = element_text(face = "bold", size = 16),
-          plot.subtitle = element_text(size = 12),
-          panel.grid.minor = element_blank(),
-          legend.position = "bottom",
-          legend.title = element_text(face = "bold"),
-          axis.title = element_text(face = "bold"),
-          plot.caption = element_text(size = 9, hjust = 0)
-        ) +
-        coord_cartesian(xlim = c(0, max(plot_data$day) * 1.3))  # More right space
-      
-      # Set y-limits for unemployment to start at 0
-      if (input$selected_index == "unemployment") {
-        p &lt;- p + ylim(0, max(plot_data$value) * 1.1)
-      }
-    } else {
-      # Plot for a single market index
-      index_name &lt;- unique(plot_data$index_name)[1]
-      
-      # Create end labels data
-      end_labels &lt;- plot_data %&gt;% 
-        group_by(president) %&gt;% 
-        filter(day == max(day)) %&gt;%
-        mutate(label = paste0(president, " (", round(percent_change, 1), "%)"))
-      
-      # Create ggplot with embedded URL in caption and more right space
-      p &lt;- ggplot(plot_data, aes(x = day, y = percent_change, color = party, group = president)) +
-        geom_line(size = 1) +
-        geom_point(data = end_labels, size = 3) +
-        # Add end labels
-        geom_text_repel(
-          data = end_labels,
-          aes(label = label),
-          direction = "y",
-          hjust = 0,
-          vjust = 0,
-          nudge_x = 5,
-          force = 3,
-          segment.size = 0.2,
-          box.padding = 0.5,
-          show.legend = FALSE
-        ) +
-        geom_hline(yintercept = 0, linetype = "dashed", color = "gray50") +
-        scale_color_manual(values = party_colors) +
-        labs(
-          title = paste(index_name, "Performance Since", ref_type),
-          subtitle = paste0("Showing first ", input$time_period, " days (0% = value on reference date)"),
-          x = paste("Days Since", ref_type),
-          y = "Percent Change (%)",
-          caption = paste0("Generated on ", Sys.Date(), " from https://jhelvy.github.io/potus-econ-scorecard/"),
-          color = "Party"
-        ) +
-        theme_minimal() +
-        theme(
-          plot.title = element_text(face = "bold", size = 16),
-          plot.subtitle = element_text(size = 12),
-          panel.grid.minor = element_blank(),
-          legend.position = "bottom",
-          legend.title = element_text(face = "bold"),
-          axis.title = element_text(face = "bold"),
-          plot.caption = element_text(size = 9, hjust = 0)
-        ) +
-        coord_cartesian(xlim = c(0, max(plot_data$day) * 1.3))  # More right space
-    }
+    # Add caption with source URL to the ggplot
+    p &lt;- p + labs(
+      caption = paste0("Generated on ", Sys.Date(), " from https://jhelvy.github.io/potus-econ-scorecard/")
+    ) +
+    theme(
+      plot.title = element_text(face = "bold", size = 16),
+      plot.subtitle = element_text(size = 12),
+      plot.caption = element_text(size = 9, hjust = 0)
+    )
     
     # Show the plot in a modal with save instructions
     showModal(
@@ -911,8 +1209,14 @@ server &lt;- function(input, output, session) {
                        "sp500" = "SP500",
                        "djia" = "DowJones",
                        "nasdaq" = "NASDAQ",
+                       "dxy" = "USDollarIndex",
                        "unemployment" = "Unemployment",
-                       "inflation" = "Inflation")
+                       "inflation" = "Inflation",
+                       "treasury10yr" = "TreasuryYield",
+                       "housing" = "HomePriceIndex",
+                       "gdp" = "RealGDP",
+                       "debt_gdp" = "DebtToGDP",
+                       "labor_participation" = "LaborParticipation")
     
     filename &lt;- paste0(index_name, "_data_", Sys.Date(), ".csv")
     
