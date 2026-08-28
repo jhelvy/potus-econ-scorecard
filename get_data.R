@@ -2,8 +2,7 @@
 # Data pipeline for the POTUS Economic Scorecard
 #
 # Fetches every indicator, validates each one, and writes the JSON the site
-# loads in the browser. Also still writes market_data.csv, which the Shinylive
-# app on index.qmd reads; that write goes away when the Shiny app is retired.
+# loads in the browser.
 #
 # Output, all under data/:
 #   <id>.json        one file per indicator: metadata plus parallel date/value arrays
@@ -253,26 +252,4 @@ write_json(
   auto_unbox = TRUE
 )
 
-#-------------------------------------------
-# market_data.csv, for the Shinylive app on index.qmd
-#
-# Delete this block, and the CSV, once that app is retired.
-#-------------------------------------------
-
-combined_data <- bind_rows(lapply(seq_len(nrow(indicators)), function(i) {
-  ind <- indicators[i, ]
-  series_list[[ind$id]] %>%
-    transmute(
-      date,
-      value,
-      index_id = ind$id,
-      # The Shiny app displays this name verbatim, and labelled the CPI series
-      # as a rate once converted.
-      index_name = if (ind$id == "inflation") "Inflation Rate (YoY)" else ind$name
-    )
-}))
-combined_data$data_retrieved <- Sys.Date()
-write.csv(combined_data, "market_data.csv", row.names = FALSE)
-
-message("\nDone. ", nrow(indicators), " indicators written to ", OUT_DIR, "/, ",
-        nrow(combined_data), " rows to market_data.csv")
+message("\nDone. ", nrow(indicators), " indicators written to ", OUT_DIR, "/")

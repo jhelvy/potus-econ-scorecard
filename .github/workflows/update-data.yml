@@ -3,16 +3,19 @@ name: Daily Market Data Update
 on:
   push:
     branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
+  # No pull_request trigger: on a PR the checkout is a detached merge ref, so
+  # the commit-and-push step below fails outright whenever the fetch turns up
+  # new data.
   schedule:
     # Run daily at 1:00 AM UTC (after US markets close)
     - cron: '0 1 * * *'
   workflow_dispatch:  # Allow manual triggering
 
-# Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
+# contents: write to commit the refreshed data; actions: write so the job can
+# dispatch the site build after pushing it.
 permissions:
   contents: write
+  actions: write
   id-token: write
 
 jobs:
@@ -28,11 +31,15 @@ jobs:
       - name: "Setup R dependencies"
         uses: r-lib/actions/setup-r-dependencies@v2
         with:
+          # tibble and zoo are reached through :: rather than library(), so they
+          # would otherwise only be present as transitive dependencies.
           packages:
             any::dplyr
             any::lubridate
             any::quantmod
             any::jsonlite
+            any::tibble
+            any::zoo
 
       - name: Run data update script
         run: |
@@ -43,15 +50,21 @@ jobs:
           git config --local user.email "actions@github.com"
           git config --local user.name "GitHub Actions"
 
+      # The site now bakes data/*.json into _site at render time, so a data
+      # commit alone no longer reaches visitors -- the site has to rebuild.
+      # A push made with GITHUB_TOKEN does not trigger other workflows, so the
+      # build is dispatched explicitly here. workflow_dispatch is one of the two
+      # events GITHUB_TOKEN is allowed to fire.
       - name: Commit and push if data changed
         run: |
-          git add data market_data.csv
+          git add data
           # Only commit and push if there are changes
           if git diff --staged --quiet; then
             echo "No data changes"
           else
             git commit -m "Update market data [automated]"
             git push
+            gh workflow run build-quarto-site.yml --ref main
           fi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

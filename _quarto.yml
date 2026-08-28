@@ -6,10 +6,8 @@ project:
   render:
     - "index.qmd"
     - "about.qmd"
-    - "studio.qmd"
-  resources: 
-    - shinylive-sw.js
-    # Fetched at runtime by studio.qmd, one indicator at a time, so they are
+  resources:
+    # Fetched at runtime by index.qmd, one indicator at a time, so they are
     # copied as plain resources rather than going through FileAttachment.
     - data/
 
@@ -28,8 +26,6 @@ website:
     left:
       - text: "Scorecard"
         file: index.qmd
-      - text: "Dev Studio"
-        file: studio.qmd
       - text: "About"
         file: about.qmd
     right: 
@@ -37,7 +33,7 @@ website:
         href: https://github.com/jhelvy/potus-econ-scorecard
   page-footer:
     center:
-      - text: "Site made with <a href='https://quarto.org/' target='_blank'><img src='https://quarto.org/favicon.png' width=12> quarto</a> and <a href='https://posit-dev.github.io/r-shinylive/' target='_blank'>shinylive</a>"
+      - text: "Site made with <a href='https://quarto.org/' target='_blank'><img src='https://quarto.org/favicon.png' width=12> quarto</a> and <a href='https://observablehq.com/plot/' target='_blank'>Observable Plot</a>"
 
 format:
   html:
@@ -50,10 +46,3 @@ execute:
   freeze: auto
   cache: true
 
-shinylive:
-  packages:
-    - shiny
-    - ggplot2
-    - dplyr
-    - ggrepel
-    - plotly
