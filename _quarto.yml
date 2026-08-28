@@ -6,8 +6,12 @@ project:
   render:
     - "index.qmd"
     - "about.qmd"
+    - "studio.qmd"
   resources: 
     - shinylive-sw.js
+    # Fetched at runtime by studio.qmd, one indicator at a time, so they are
+    # copied as plain resources rather than going through FileAttachment.
+    - data/
 
 website:  
   title: "POTUS Economic Scorecard"
@@ -24,6 +28,8 @@ website:
     left:
       - text: "Scorecard"
         file: index.qmd
+      - text: "Dev Studio"
+        file: studio.qmd
       - text: "About"
         file: about.qmd
     right: 

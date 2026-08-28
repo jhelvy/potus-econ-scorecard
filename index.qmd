@@ -5,6 +5,11 @@ format:
       - shinylive-sw.js
 filters:
   - shinylive
+# The only executable cell here is {shinylive-r}, which the shinylive filter
+# transforms rather than executes. Quarto's engine detection doesn't map
+# shinylive-r to R, so without this it falls through to jupyter and demands a
+# Python kernel that is never used.
+engine: markdown
 ---
 
 <center>

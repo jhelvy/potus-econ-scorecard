@@ -1,0 +1,864 @@
+---
+title: "Dev Studio"
+subtitle: "Observable JS rebuild — full feature parity with the Shinylive app"
+format:
+  html:
+    theme: morph
+    page-layout: full
+    toc: false
+include-in-header:
+  text: |
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto+Condensed:wght@400;500;700&display=swap" rel="stylesheet">
+---
+
+::: {.callout-note collapse="true"}
+## Working notes
+
+The Observable JS rebuild of the scorecard, at feature parity with the Shinylive app on the
+[Scorecard](index.qmd) tab: all eleven indicators, both the percent-change and absolute-value
+paths, party filtering, and both exports. Flip between the two tabs to compare.
+
+Data comes from `data/*.json`, written by `get_data.R`. Only the selected indicator is fetched,
+so the page loads about 90 KB gzipped rather than the 3.9 MB CSV plus webR and five R packages.
+
+No R runs in the browser. The downloaded PNG is a render of the chart on screen rather than a
+separately-composed ggplot — the one real difference from the Shinylive version.
+:::
+
+```{=html}
+<style>
+/* Quarto stamps .card.bg-light onto .panel-sidebar, so these have to out-specify
+   it rather than just set the property. The Shinylive app puts everything on a
+   white card; match that so the two pages read as the same site. */
+.panel-sidebar.card {
+  width: 300px;
+  flex: 0 0 300px;
+  background-color: #fff;
+  border: 1px solid #e3e6ec;
+  border-radius: 10px;
+  padding: 1rem 1.1rem !important;
+}
+/* Observable Inputs renders both the group heading and each option as <label>.
+   The heading is the form's direct child; the options are nested inside the div
+   that holds the controls. Only the heading is bold, matching the Shinylive app. */
+.panel-sidebar form > label,
+.panel-sidebar .field > label { font-weight: 700; }
+.panel-sidebar form > div > label { font-weight: 400; }
+/* Observable Inputs lays checkbox options out in an auto-fill grid, which gives
+   two ragged columns at this width. The Shinylive app uses one column. */
+.panel-sidebar form > div { display: block !important; }
+.panel-sidebar form > div > label {
+  display: block;
+  margin-bottom: 0.15rem;
+}
+/* Inputs puts the heading and the options side by side when the option list is
+   short, which reads as a different control from the long ones. Stack them all. */
+.panel-sidebar form {
+  display: flex !important;
+  flex-direction: column;
+  align-items: stretch;
+  width: 100%;
+}
+/* Without this the box and its text are flush against each other. */
+.panel-sidebar input[type="checkbox"],
+.panel-sidebar input[type="radio"] {
+  margin-right: 0.4rem;
+}
+
+.field { margin: 0.9rem 0 0.2rem 0; }
+.field > label { display: block; margin-bottom: 0.3rem; }
+.field label { font-weight: 400; }
+
+/* An indicator whose series starts after a president took office cannot be
+   plotted for them. Dimming is a hint, not a lockout -- the chart still says so
+   plainly if you pick only uncovered presidents. */
+.option-uncovered { opacity: 0.45; }
+
+.check-list label {
+  display: block;
+  margin-bottom: 0.15rem;
+  font-weight: 400;
+}
+.select-row {
+  display: flex;
+  gap: 0.4rem;
+  margin: 0.5rem 0 0.2rem 0;
+}
+
+/* The indicator blurb the Shinylive app shows above the chart. */
+.indicator-note {
+  background: #f4f7fb;
+  border-left: 4px solid #2166ac;
+  border-radius: 4px;
+  padding: 0.7rem 1rem;
+  margin-bottom: 0.9rem;
+  font-size: 0.95rem;
+  color: #2b2b2b;
+}
+.indicator-note p { margin-bottom: 0; }
+
+.chart-card {
+  background: #fff;
+  border: 1px solid #e3e6ec;
+  border-radius: 10px;
+  padding: 0.75rem 1rem 1rem 1rem;
+}
+
+.no-data {
+  min-height: 380px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  color: #6c757d;
+  padding: 2rem;
+}
+.no-data h4 { color: #6c757d; margin-bottom: 1rem; }
+.no-data ul { list-style: none; padding: 0; }
+
+/* Hand-rolled slider. The tick row is a positioned strip rather than a flex row
+   so each label sits at its real value along the track, not at an even
+   interval. */
+.slider-value {
+  font-variant-numeric: tabular-nums;
+  color: #2166ac;
+}
+.field input[type="range"] {
+  width: 100%;
+  margin: 0;
+  accent-color: #2166ac;
+}
+.slider-ticks {
+  position: relative;
+  height: 1.1rem;
+  margin-top: 0.15rem;
+  font-size: 0.75rem;
+  color: #6c757d;
+}
+.slider-ticks span {
+  position: absolute;
+  transform: translateX(-50%);
+  font-variant-numeric: tabular-nums;
+}
+/* The range thumb has width, so the track's usable span is inset by half a thumb
+   at each end; nudge the outermost ticks back over the real endpoints. */
+.slider-ticks span:first-child { transform: none; }
+.slider-ticks span:last-child { transform: translateX(-100%); }
+
+/* The morph theme styles .btn with a neumorphic shadow, which reads as an
+   accident next to the flat cards. These are plain outline buttons instead. */
+.download-row {
+  display: flex;
+  gap: 0.5rem;
+  margin: 0.75rem 0 0.25rem 0;
+}
+.download-btn, .mini-btn,
+.panel-sidebar .mini-btn.btn {
+  font: inherit;
+  color: #2b2b2b;
+  background: #fff;
+  border: 1px solid #c9cfd8;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.download-btn { font-size: 0.9rem; padding: 0.35rem 0.85rem; }
+.mini-btn, .panel-sidebar .mini-btn.btn {
+  font-size: 0.8rem;
+  padding: 0.2rem 0.5rem;
+  border: 1px solid #c9cfd8;
+  background: #fff;
+  color: #2b2b2b;
+  box-shadow: none;
+}
+.download-btn:hover, .mini-btn:hover { background: #f2f5f9; border-color: #9aa5b4; }
+.download-btn:active, .mini-btn:active { background: #e8edf4; }
+</style>
+```
+
+```{ojs}
+//| echo: false
+// Metadata for all eleven indicators, no series data -- about 7 KB. The series
+// itself is fetched only when its indicator is selected.
+indicators = FileAttachment("data/indicators.json").json()
+presidents = FileAttachment("data/presidents.json").json()
+
+indicatorById = new Map(indicators.map(d => [d.id, d]))
+```
+
+::: {.panel-sidebar}
+
+```{ojs}
+//| echo: false
+viewof selectedIndex = Inputs.radio(
+  new Map(indicators.map(d => [d.name, d.id])),
+  {label: "Select Economic Indicator:", value: "sp500"}
+)
+
+viewof referenceType = Inputs.radio(
+  new Map([["Inauguration Day", "inauguration"], ["Day Before Election", "election"]]),
+  {label: "Reference Date:", value: "inauguration"}
+)
+```
+
+```{ojs}
+//| echo: false
+// Inputs.range puts a full-width number box above the track. The Shinylive app
+// uses a bare track with tick labels underneath, so this is a hand-rolled view:
+// a range input plus a readout and a proportionally-positioned tick row, wired
+// up with the standard Observable custom-view pattern (set `value`, dispatch
+// "input").
+viewof daysToShow = {
+  const min = 10, max = 1460;
+  const ticks = [10, 365, 730, 1095, 1460];
+
+  const slider = htl.html`<input type="range" min="${min}" max="${max}" step="10" value="360">`;
+  const readout = htl.html`<span class="slider-value">360</span>`;
+
+  const el = htl.html`<div class="field">
+    <label>Days to Display: ${readout}</label>
+    ${slider}
+    <div class="slider-ticks">
+      ${ticks.map(t => htl.html`<span style="left:${(t - min) / (max - min) * 100}%">${t.toLocaleString()}</span>`)}
+    </div>
+  </div>`;
+
+  el.value = +slider.value;
+  slider.oninput = () => {
+    el.value = +slider.value;
+    readout.textContent = el.value.toLocaleString();
+    el.dispatchEvent(new CustomEvent("input"));
+  };
+  return el;
+}
+
+viewof partyFilter = Inputs.checkbox(
+  ["Democratic", "Republican"],
+  {label: "Filter by Party:", value: ["Democratic", "Republican"]}
+)
+```
+
+```{ojs}
+//| echo: false
+// The president picker is hand-rolled rather than an Inputs.checkbox so that
+// Select All / Deselect All can write back into it, and so that presidents the
+// current series cannot cover can be dimmed.
+viewof selectedPresidents = {
+  const names = presidents.map(p => p.president).slice().reverse();
+  const initial = ["Trump (2025)", "Biden (2021)", "Trump (2017)", "Obama (2013)"];
+
+  // htl rejects an interpolated bare attribute, so `checked` is set on the
+  // element after it is built rather than templated into the tag.
+  const boxes = new Map(names.map(name => {
+    const box = htl.html`<input type="checkbox">`;
+    box.checked = initial.includes(name);
+    return [name, box];
+  }));
+
+  const selectAll = htl.html`<button class="mini-btn">Select All</button>`;
+  const deselectAll = htl.html`<button class="mini-btn">Deselect All</button>`;
+
+  const el = htl.html`<div class="field">
+    <label>Select Presidents:</label>
+    <div class="select-row">${selectAll}${deselectAll}</div>
+    <div class="check-list">
+      ${names.map(name => htl.html`<label data-president="${name}">${boxes.get(name)}${name}</label>`)}
+    </div>
+  </div>`;
+
+  const sync = () => {
+    el.value = names.filter(n => boxes.get(n).checked);
+    el.dispatchEvent(new CustomEvent("input"));
+  };
+
+  for (const box of boxes.values()) box.onchange = sync;
+  selectAll.onclick = () => { for (const b of boxes.values()) b.checked = true; sync(); };
+  deselectAll.onclick = () => { for (const b of boxes.values()) b.checked = false; sync(); };
+
+  el.value = names.filter(n => boxes.get(n).checked);
+  return el;
+}
+```
+
+```{ojs}
+//| echo: false
+// Dim the presidents the selected series does not reach back far enough to
+// cover. This runs as a side effect on the already-rendered picker rather than
+// rebuilding it, so the user's selection survives an indicator change.
+coverageHint = {
+  const covered = new Set(meta.covers);
+  for (const label of viewof selectedPresidents.querySelectorAll("[data-president]")) {
+    const name = label.dataset.president;
+    const ok = covered.has(name);
+    label.classList.toggle("option-uncovered", !ok);
+    label.title = ok ? "" : `${meta.name} data starts ${meta.first_date}, after this inauguration`;
+  }
+  return covered;
+}
+```
+
+:::
+
+::: {.panel-fill}
+
+```{ojs}
+//| echo: false
+meta = indicatorById.get(selectedIndex)
+
+// Only the selected series is fetched. FileAttachment needs a literal path, so
+// this is a plain fetch; the files are declared as project resources.
+series = {
+  const res = await fetch(`data/${selectedIndex}.json`);
+  if (!res.ok) throw new Error(`could not load data/${selectedIndex}.json (${res.status})`);
+  return res.json();
+}
+
+points = series.dates.map((d, i) => ({date: d, value: series.values[i]}))
+
+dayNumber = {
+  const ms = 86400000;
+  return (a, b) => Math.round((Date.parse(a + "T00:00:00Z") - Date.parse(b + "T00:00:00Z")) / ms);
+}
+```
+
+```{ojs}
+//| echo: false
+html`<div class="indicator-note">${meta.description}</div>`
+```
+
+```{ojs}
+//| echo: false
+// Port of process_market_data() and process_econ_data() from the Shiny app.
+// Those two differ only in whether the series is re-indexed to its reference
+// value, so this is one pass with a flag.
+//
+// The one deliberate change is the !isNaN guard when picking the reference
+// observation: the Shiny app takes the first row on or after the reference date
+// without checking for a missing value, which is what blanked out the dollar
+// index on inauguration days falling on a federal holiday.
+plotData = {
+  const isPercent = meta.type === "percent_change";
+  const chosen = presidents.filter(p =>
+    selectedPresidents.includes(p.president) && partyFilter.includes(p.party)
+  );
+  const rows = [];
+
+  for (const pres of chosen) {
+    const refDate = referenceType === "inauguration" ? pres.inauguration_date : pres.election_date;
+
+    const start = points.findIndex(d => d.date >= refDate && d.value != null && !isNaN(d.value));
+    if (start === -1) continue;
+
+    // The reference observation has to actually be near the reference date. The
+    // Shiny app takes the first row on or after it with no distance check, so
+    // asking for the Home Price Index under Eisenhower silently anchors day 0 to
+    // January 1987 and draws thirty years of the wrong presidency. The widest
+    // legitimate gap is a quarterly series reporting up to ~92 days later, so
+    // 180 days leaves room without admitting a decades-wide jump.
+    if (dayNumber(points[start].date, refDate) > 180) continue;
+
+    const refValue = points[start].value;
+    const refDay = points[start].date;
+
+    for (let i = start; i < points.length; i++) {
+      const day = dayNumber(points[i].date, refDay);
+      if (day > daysToShow) break;
+      rows.push({
+        president: pres.president,
+        party: pres.party,
+        date: points[i].date,
+        day,
+        value: points[i].value,
+        percent_change: isPercent ? (points[i].value / refValue - 1) * 100 : null,
+        plotted: isPercent ? (points[i].value / refValue - 1) * 100 : points[i].value
+      });
+    }
+  }
+  return rows;
+}
+
+hasData = plotData.length > 0 && plotData.some(d => d.plotted != null && !isNaN(d.plotted))
+```
+
+::: {.chart-card}
+
+```{ojs}
+//| echo: false
+// Quarto's `width` is the width of the page column, not of the card the chart
+// actually sits in. Authoring the SVG at that width and letting Plot's own
+// `max-width: 100%` squash it into the card scaled everything down by a third,
+// so a 15px label rendered at 10px. Measuring the card directly keeps the SVG at
+// its natural size, which means the font sizes below are the sizes on screen.
+chartWidth = {
+  const card = document.querySelector(".chart-card");
+  if (!card) return Math.max(560, Math.min(1200, width));
+
+  const inner = () => {
+    const cs = getComputedStyle(card);
+    return card.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+  };
+  const clamp = w => Math.max(560, Math.min(1200, Math.floor(w)));
+
+  return Generators.observe(notify => {
+    const ro = new ResizeObserver(() => notify(clamp(inner())));
+    ro.observe(card);
+    notify(clamp(inner()));
+    return () => ro.disconnect();
+  });
+}
+
+// A fixed height would go squat on a narrow window and letterboxed on a wide one.
+plotHeight = Math.round(Math.max(430, Math.min(620, chartWidth * 0.60)))
+
+marginTop = 78
+marginBottom = 92
+
+plotAreaHeight = plotHeight - marginTop - marginBottom
+
+// The y domain is computed here rather than left to Plot's `nice`/`zero`,
+// because the declutter below has to know the axis extent exactly. Deriving it
+// from the data range instead was wrong wherever the axis is wider than the
+// data -- pinning unemployment to zero stretches the axis to 0-10 while the
+// values only span 3.4-10, and the gap came out a third too small.
+yDomain = {
+  const values = plotData.map(d => d.plotted).filter(v => v != null && !isNaN(v));
+  if (values.length === 0) return [0, 1];
+
+  const lo = Math.min(...values), hi = Math.max(...values);
+  const pad = (hi - lo || Math.abs(hi) || 1) * 0.06;
+
+  // The Shiny app pins unemployment to a zero baseline; a rate charted on a
+  // floating axis exaggerates small moves.
+  return meta.id === "unemployment" ? [0, hi + pad] : [lo - pad, hi + pad];
+}
+
+// With every president selected there are nineteen labels to stack, and at a
+// fixed line height they need more room than the plot area has. Shrinking the
+// type as the list grows is what keeps them from colliding.
+labelCount = new Set(plotData.map(d => d.president)).size
+
+// 1.35 rather than the font size itself: a rendered text box is noticeably
+// taller than its nominal size, so spacing labels by font size alone left them
+// touching by a pixel or two.
+labelFontSize = Math.max(9, Math.min(15,
+  Math.floor(plotAreaHeight / Math.max(labelCount, 1) / 1.35)))
+
+labelLineHeight = Math.ceil(labelFontSize * 1.35)
+
+maxDay = plotData.length ? Math.max(...plotData.map(d => d.day)) : daysToShow
+
+partyColor = ({Democratic: "#2166ac", Republican: "#b2182b"})
+
+// Roboto Condensed, with a condensed-first fallback chain so a failed webfont
+// load degrades to something of a similar width rather than to a wide default.
+fontStack = "'Roboto Condensed', 'Helvetica Neue Condensed', 'Arial Narrow', system-ui, sans-serif"
+
+refLabel = referenceType === "inauguration" ? "Inauguration Day" : "Day Before Election"
+
+// The Shiny app formats the end-label value as a percentage for the market
+// indices and as a bare number for everything else.
+formatValue = meta.type === "percent_change"
+  ? (v => `${v.toFixed(1)}%`)
+  : (v => v.toFixed(1))
+```
+
+```{ojs}
+//| echo: false
+// The last observation for each president, used for the direct end-labels that
+// stand in for a colour legend.
+endPoints = {
+  const last = new Map();
+  for (const row of plotData) {
+    const prev = last.get(row.president);
+    if (!prev || row.day > prev.day) last.set(row.president, row);
+  }
+
+  const ends = Array.from(last.values())
+    .map(d => ({...d, label: `${d.president} (${formatValue(d.plotted)})`, labelY: d.plotted}))
+    .sort((a, b) => a.plotted - b.plotted);
+
+  // A stand-in for ggrepel. An iterative push-apart looked fine at four labels
+  // but converged far too slowly at nineteen, where the labels start clustered
+  // and need to spread across most of the axis. This is the exact two-pass
+  // version instead: sweep up enforcing the minimum gap, and if that overshoots
+  // the top of the axis, sweep back down from it.
+  //
+  // The gap is in data units, derived from the axis extent rather than the range
+  // of the labels themselves: when every president lands in a narrow band the
+  // label range is tiny while the axis is still wide, and scaling by the label
+  // range asks for a gap far smaller than a line of text.
+  const axisExtent = yDomain[1] - yDomain[0];
+  const minGap = (axisExtent || 1) * (labelLineHeight / plotAreaHeight);
+
+  for (let i = 1; i < ends.length; i++) {
+    ends[i].labelY = Math.max(ends[i].labelY, ends[i - 1].labelY + minGap);
+  }
+
+  const top = yDomain[1];
+  if (ends.length && ends[ends.length - 1].labelY > top) {
+    ends[ends.length - 1].labelY = top;
+    for (let i = ends.length - 2; i >= 0; i--) {
+      ends[i].labelY = Math.min(ends[i].labelY, ends[i + 1].labelY - minGap);
+    }
+  }
+
+  return ends;
+}
+```
+
+```{ojs}
+//| echo: false
+chart = {
+  if (!hasData) return noDataMessage();
+
+  const isPercent = meta.type === "percent_change";
+
+  const svg = Plot.plot({
+    width: chartWidth,
+    height: plotHeight,
+    marginTop: marginTop,
+    marginRight: 205,
+    marginLeft: 74,
+    marginBottom: marginBottom,
+    style: {
+      background: "white",
+      color: "#2b2b2b",
+      fontFamily: fontStack,
+      // Drives the tick labels. Roboto Condensed sets narrow, so it needs a
+      // couple of points more than a normal-width face to read at the same size.
+      fontSize: "16px"
+    },
+    x: {
+      label: `Days Since ${refLabel}`,
+      labelAnchor: "center",
+      labelArrow: "none",
+      labelOffset: 56,
+      grid: true,
+      // An explicit domain rather than `nice: true`, which rounded the axis out
+      // to 400 when the data stopped at 360. The end-labels live in marginRight,
+      // so no slack is needed inside the plot area to fit them.
+      domain: [0, maxDay]
+    },
+    y: {
+      label: meta.y_label,
+      labelAnchor: "center",
+      labelArrow: "none",
+      labelOffset: 60,
+      grid: true,
+      domain: yDomain,
+      tickFormat: isPercent ? (d => `${d}%`) : undefined
+    },
+    color: {
+      domain: Object.keys(partyColor),
+      range: Object.values(partyColor)
+    },
+    marks: [
+      // The zero line is only meaningful when the series is indexed to it.
+      isPercent ? Plot.ruleY([0], {stroke: "#8c8c8c", strokeWidth: 1}) : null,
+      Plot.line(plotData, {
+        x: "day",
+        y: "plotted",
+        z: "president",
+        stroke: "party",
+        strokeWidth: 1.8,
+        strokeOpacity: 0.9
+      }),
+      Plot.dot(endPoints, {x: "day", y: "plotted", fill: "party", r: 3.5}),
+      // Leader line from the series end out to the label. Labels are pinned to
+      // the right edge of the plot area rather than sitting at their series'
+      // last x: a presidency still in progress ends partway across the chart,
+      // and a label left there lands on top of the other lines.
+      Plot.link(endPoints, {
+        x1: "day",
+        y1: "plotted",
+        x2: () => maxDay,
+        y2: "labelY",
+        stroke: "#bdbdbd",
+        strokeWidth: 1
+      }),
+      Plot.text(endPoints, {
+        x: () => maxDay,
+        y: "labelY",
+        text: "label",
+        fill: "party",
+        dx: 8,
+        textAnchor: "start",
+        fontSize: labelFontSize,
+        fontWeight: 500
+      }),
+      Plot.tip(plotData, Plot.pointer({
+        x: "day",
+        y: "plotted",
+        title: d => `${d.president}\n${d.date}\nDay ${d.day}\n${formatValue(d.plotted)}`
+      }))
+    ].filter(Boolean)
+  });
+
+  const verb = isPercent ? "Performance Since" : "Since";
+  const subtitle = isPercent
+    ? `Showing first ${daysToShow} days (0% = value on reference date)`
+    : `Showing first ${daysToShow} days`;
+
+  addSvgText(svg, [
+    {text: `${meta.name} ${verb} ${refLabel}`, x: 6, y: 28, size: 23, weight: 700},
+    {text: subtitle, x: 6, y: 54, size: 16, weight: 400, fill: "#666"}
+  ]);
+
+  // Plot has no separate size for the axis titles; they inherit the tick size.
+  // Bump them afterwards so they sit above the ticks in the hierarchy.
+  for (const sel of ["x-axis label", "y-axis label"]) {
+    const t = svg.querySelector(`g[aria-label="${sel}"] text`);
+    if (t) t.setAttribute("font-size", 18);
+  }
+
+  addSvgLegend(svg, chartWidth - 205, plotHeight - 14);
+
+  return svg;
+}
+```
+
+:::
+
+```{ojs}
+//| echo: false
+buttons = {
+  const stamp = new Date().toISOString().slice(0, 10);
+  const slug = `${selectedIndex}_${referenceType}_${daysToShow}d_${stamp}`;
+
+  const pngButton = htl.html`<button class="download-btn">Download PNG</button>`;
+  pngButton.onclick = () => downloadPng(chart, `${slug}.png`);
+
+  const csvButton = htl.html`<button class="download-btn">Download CSV</button>`;
+  csvButton.onclick = () => downloadCsv(plotData, `${slug}.csv`);
+
+  // Disabled rather than removed when there is nothing to export. Returning an
+  // empty fragment from this cell left the container in a state where the
+  // buttons came back present but invisible on the next render, and keeping the
+  // row in place also stops the page reflowing every time the chart empties.
+  for (const b of [pngButton, csvButton]) {
+    b.disabled = !hasData;
+    b.style.opacity = hasData ? "" : "0.45";
+    b.style.cursor = hasData ? "pointer" : "not-allowed";
+  }
+
+  return htl.html`<div class="download-row">${pngButton}${csvButton}</div>`;
+}
+```
+
+:::
+
+```{ojs}
+//| echo: false
+// Stands in for the chart when nothing can be plotted -- most often because the
+// selected series starts after every selected president took office.
+function noDataMessage() {
+  // Two different reasons land here, and blaming coverage when the real problem
+  // is an empty selection sends the reader looking in the wrong place.
+  const chosen = presidents.filter(p =>
+    selectedPresidents.includes(p.president) && partyFilter.includes(p.party)
+  );
+
+  const reason = chosen.length === 0
+    ? htl.html`<p>No presidents are selected.</p>`
+    : htl.html`<p>${meta.name} data begins ${meta.first_date}, which is after
+        ${chosen.length === 1 ? "this presidency" : "every selected presidency"} began.
+        It covers ${meta.covers.length} of ${presidents.length} presidencies.</p>`;
+
+  return htl.html`<div class="no-data">
+    <h4>Insufficient Data Available</h4>
+    ${reason}
+    <p><strong>Try one of the following:</strong></p>
+    <ul>
+      <li>Select a president the series covers</li>
+      <li>Change the reference date</li>
+      <li>Choose a different time period</li>
+      <li>Select a different economic indicator</li>
+    </ul>
+  </div>`;
+}
+```
+
+```{ojs}
+//| echo: false
+// Title, subtitle and caption are written straight into the SVG rather than
+// passed as Plot's title/subtitle/caption options. Those options wrap the chart
+// in a <figure> with HTML siblings, which would not survive serialisation into
+// the PNG. Keeping them inside the SVG makes the download match the screen.
+function addSvgText(svg, items) {
+  const NS = "http://www.w3.org/2000/svg";
+  for (const item of items) {
+    const t = document.createElementNS(NS, "text");
+    t.setAttribute("x", item.x);
+    t.setAttribute("y", item.y);
+    t.setAttribute("font-family", fontStack);
+    t.setAttribute("font-size", item.size);
+    t.setAttribute("font-weight", item.weight);
+    t.setAttribute("fill", item.fill ?? "#2b2b2b");
+    t.setAttribute("text-anchor", "start");
+    t.textContent = item.text;
+    svg.appendChild(t);
+  }
+  return svg;
+}
+
+// The party legend, drawn into the SVG rather than left to Plot's colour legend,
+// which renders as an HTML sibling in a <figure> and so would not survive
+// serialisation into the PNG. Laid out from a fixed left edge with fixed slot
+// widths: the SVG is detached when this runs, so getComputedTextLength() would
+// return 0 and there is nothing to measure against.
+function addSvgLegend(svg, rightX, y) {
+  const NS = "http://www.w3.org/2000/svg";
+  const entries = [["Democratic", partyColor.Democratic], ["Republican", partyColor.Republican]];
+  const slot = 112, swatch = 28, gap = 8;
+  let x = rightX - entries.length * slot;
+
+  for (const [name, color] of entries) {
+    const line = document.createElementNS(NS, "line");
+    line.setAttribute("x1", x);
+    line.setAttribute("x2", x + swatch);
+    line.setAttribute("y1", y - 5);
+    line.setAttribute("y2", y - 5);
+    line.setAttribute("stroke", color);
+    line.setAttribute("stroke-width", 3);
+    svg.appendChild(line);
+
+    const t = document.createElementNS(NS, "text");
+    t.setAttribute("x", x + swatch + gap);
+    t.setAttribute("y", y);
+    t.setAttribute("font-family", fontStack);
+    t.setAttribute("font-size", 15);
+    t.setAttribute("fill", "#2b2b2b");
+    t.setAttribute("text-anchor", "start");
+    t.textContent = name;
+    svg.appendChild(t);
+
+    x += slot;
+  }
+  return svg;
+}
+```
+
+```{ojs}
+//| echo: false
+// A canvas rasterises an SVG in isolation: it does not inherit the page's
+// webfonts, so without this the PNG silently falls back to a system face while
+// the screen shows Roboto Condensed. Fetching the woff2 files and inlining them
+// as data URIs inside the clone is what keeps the two identical. Resolved once
+// and reused; if the fetch fails the export still works, just in the fallback
+// font.
+fontFaceCss = {
+  try {
+    const cssUrl = "https://fonts.googleapis.com/css2?family=Roboto+Condensed:wght@400;500;700&display=swap";
+    const css = await (await fetch(cssUrl)).text();
+
+    // Keep only the latin subset; the other unicode-range blocks would triple
+    // the payload for glyphs this chart never draws.
+    const blocks = css.split("@font-face").slice(1).filter(b => b.includes("U+0000-00FF"));
+
+    const out = [];
+    for (const block of blocks) {
+      const url = block.match(/url\((https:[^)]+\.woff2)\)/)?.[1];
+      const weight = block.match(/font-weight:\s*(\d+)/)?.[1] ?? "400";
+      if (!url) continue;
+      const buf = await (await fetch(url)).arrayBuffer();
+      let bin = "";
+      const bytes = new Uint8Array(buf);
+      for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+      out.push(`@font-face{font-family:'Roboto Condensed';font-style:normal;font-weight:${weight};src:url(data:font/woff2;base64,${btoa(bin)}) format('woff2');}`);
+    }
+    return out.join("");
+  } catch (e) {
+    return "";
+  }
+}
+
+// Rasterise the live SVG at 2x. The chart is a bare <svg> by design -- Plot's
+// built-in colour legend would have wrapped it in a <figure>, so the direct
+// end-labels serve as the legend instead and the whole chart stays serialisable.
+function downloadPng(svgEl, filename, scale = 2) {
+  const width = +svgEl.getAttribute("width");
+  const height = +svgEl.getAttribute("height");
+  const captionHeight = 30;
+
+  const clone = svgEl.cloneNode(true);
+  clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+  clone.setAttribute("width", width);
+  clone.setAttribute("height", height + captionHeight);
+  clone.setAttribute("viewBox", `0 0 ${width} ${height + captionHeight}`);
+
+  // SVG is transparent by default; PNG needs a painted background.
+  const NS = "http://www.w3.org/2000/svg";
+  const bg = document.createElementNS(NS, "rect");
+  bg.setAttribute("width", width);
+  bg.setAttribute("height", height + captionHeight);
+  bg.setAttribute("fill", "white");
+  clone.insertBefore(bg, clone.firstChild);
+
+  if (fontFaceCss) {
+    const style = document.createElementNS(NS, "style");
+    style.textContent = fontFaceCss;
+    clone.insertBefore(style, clone.firstChild);
+  }
+
+  addSvgText(clone, [{
+    text: `Generated on ${new Date().toISOString().slice(0, 10)} from https://jhelvy.github.io/potus-econ-scorecard/`,
+    x: 8,
+    y: height + 20,
+    size: 11,
+    weight: 400,
+    fill: "#777"
+  }]);
+
+  const xml = new XMLSerializer().serializeToString(clone);
+  const url = URL.createObjectURL(new Blob([xml], {type: "image/svg+xml;charset=utf-8"}));
+
+  const img = new Image();
+  // A malformed clone fails the image load with no exception anywhere, which
+  // would look to the user like a button that does nothing.
+  img.onerror = () => {
+    URL.revokeObjectURL(url);
+    console.error("PNG export failed: the chart SVG could not be rasterised");
+  };
+  img.onload = () => {
+    const canvas = document.createElement("canvas");
+    canvas.width = width * scale;
+    canvas.height = (height + captionHeight) * scale;
+    const ctx = canvas.getContext("2d");
+    ctx.scale(scale, scale);
+    ctx.drawImage(img, 0, 0);
+    URL.revokeObjectURL(url);
+    canvas.toBlob(blob => saveBlob(blob, filename), "image/png");
+  };
+  img.src = url;
+}
+
+function downloadCsv(rows, filename) {
+  const columns = ["president", "party", "date", "day", "value", "percent_change"];
+  const escape = v => {
+    const s = v == null ? "" : String(v);
+    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  const csv = [
+    columns.join(","),
+    ...rows.map(r => columns.map(c => escape(r[c])).join(","))
+  ].join("\n");
+  saveBlob(new Blob([csv], {type: "text/csv;charset=utf-8"}), filename);
+}
+
+function saveBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+
+  // Revoking synchronously races the browser: on a large blob the download is
+  // aborted before it starts, silently. Hand the URL back on the next macrotask
+  // instead, once the download has been handed off.
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
+}
+```

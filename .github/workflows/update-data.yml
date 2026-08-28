@@ -29,11 +29,10 @@ jobs:
         uses: r-lib/actions/setup-r-dependencies@v2
         with:
           packages:
-            cran::shinylive@0.3.0
             any::dplyr
             any::lubridate
-            any::tidyr
-            any::tidyquant
+            any::quantmod
+            any::jsonlite
 
       - name: Run data update script
         run: |
@@ -46,10 +45,10 @@ jobs:
 
       - name: Commit and push if data changed
         run: |
-          git add market_data.csv
+          git add data market_data.csv
           # Only commit and push if there are changes
           if git diff --staged --quiet; then
-            echo "No changes to market_data.csv"
+            echo "No data changes"
           else
             git commit -m "Update market data [automated]"
             git push
