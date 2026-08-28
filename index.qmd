@@ -1,1161 +1,868 @@
 ---
-format: 
+format:
   html:
-    resources: 
-      - shinylive-sw.js
-filters:
-  - shinylive
+    theme: morph
+    page-layout: full
+    toc: false
+include-in-header:
+  text: |
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto+Condensed:wght@400;500;700&display=swap" rel="stylesheet">
 ---
 
-<center>
-This can take ~30s to load as it runs entirely in your browser...just leave the window open until it loads<br>
-
-The app is best viewed in landscape mode on a mobile device.
-</center>
-
-```{shinylive-r}
-#| standalone: true
-#| viewerHeight: 1100
-
-# Load required libraries
-library(shiny)
-library(ggplot2)
-library(dplyr)
-library(ggrepel)
-library(plotly)
-
-#-------------------------------------------
-# Data Loading and Processing Functions ----
-#-------------------------------------------
-
-# Function to load presidents data
-load_presidents_data <- function() {
-    presidents_data <- data.frame(
-      president = c(
-        "Eisenhower (1957)", "Kennedy (1961)", "Johnson (1963)", "Nixon (1969)",
-        "Nixon (1973)", "Ford (1974)", "Carter (1977)", "Reagan (1981)",
-        "Reagan (1985)", "Bush Sr. (1989)", "Clinton (1993)", "Clinton (1997)",
-        "Bush Jr. (2001)", "Bush Jr. (2005)", "Obama (2009)", "Obama (2013)",
-        "Trump (2017)", "Biden (2021)", "Trump (2025)"
-      ),
-      inauguration_date = as.Date(c(
-        "1957-01-20", "1961-01-20", "1963-11-22", "1969-01-20",
-        "1973-01-20", "1974-08-09", "1977-01-20", "1981-01-20",
-        "1985-01-20", "1989-01-20", "1993-01-20", "1997-01-20",
-        "2001-01-20", "2005-01-20", "2009-01-20", "2013-01-20",
-        "2017-01-20", "2021-01-20", "2025-01-20"
-      )),
-      election_date = as.Date(c(
-        "1956-11-06", "1960-11-08", "1960-11-08", "1968-11-05",
-        "1972-11-07", "1972-11-07", "1976-11-02", "1980-11-04",
-        "1984-11-06", "1988-11-08", "1992-11-03", "1996-11-05",
-        "2000-11-07", "2004-11-02", "2008-11-04", "2012-11-06",
-        "2016-11-08", "2020-11-03", "2024-11-05"
-      )),
-      party = c(
-        "Republican", "Democratic", "Democratic", "Republican",
-        "Republican", "Republican", "Democratic", "Republican",
-        "Republican", "Republican", "Democratic", "Democratic",
-        "Republican", "Republican", "Democratic", "Democratic",
-        "Republican", "Democratic", "Republican"
-      ),
-      stringsAsFactors = FALSE
-    )
-
-    # Convert date column to Date type
-    presidents_data$inauguration_date <- as.Date(presidents_data$inauguration_date)
-    presidents_data$election_date <- as.Date(presidents_data$election_date)
-
-    return(presidents_data)
+```{=html}
+<style>
+/* Quarto stamps .card.bg-light onto .panel-sidebar, so these have to out-specify
+   it rather than just set the property. Everything sits on a white card. */
+.panel-sidebar.card {
+  width: 300px;
+  flex: 0 0 300px;
+  background-color: #fff;
+  border: 1px solid #e3e6ec;
+  border-radius: 10px;
+  padding: 1rem 1.1rem !important;
+}
+/* Observable Inputs renders both the group heading and each option as <label>.
+   The heading is the form's direct child; the options are nested inside the div
+   that holds the controls. Only the heading should be bold. */
+.panel-sidebar form > label,
+.panel-sidebar .field > label { font-weight: 700; }
+.panel-sidebar form > div > label { font-weight: 400; }
+/* Observable Inputs lays checkbox options out in an auto-fill grid, which gives
+   two ragged columns at this width. One column reads better. */
+.panel-sidebar form > div { display: block !important; }
+.panel-sidebar form > div > label {
+  display: block;
+  margin-bottom: 0.15rem;
+}
+/* Inputs puts the heading and the options side by side when the option list is
+   short, which reads as a different control from the long ones. Stack them all. */
+.panel-sidebar form {
+  display: flex !important;
+  flex-direction: column;
+  align-items: stretch;
+  width: 100%;
+}
+/* Without this the box and its text are flush against each other. */
+.panel-sidebar input[type="checkbox"],
+.panel-sidebar input[type="radio"] {
+  margin-right: 0.4rem;
 }
 
-# Function to load prepared data
-load_data <- function() {
-  # URL for the data files in GitHub
-  market_data_url <- "https://raw.githubusercontent.com/jhelvy/potus-econ-scorecard/refs/heads/main/market_data.csv"
+.field { margin: 0.9rem 0 0.2rem 0; }
+.field > label { display: block; margin-bottom: 0.3rem; }
+.field label { font-weight: 400; }
 
-  # Load data
-  tryCatch({
-    market_data_raw <- read.csv(market_data_url, stringsAsFactors = FALSE)
-    presidents_data <- load_presidents_data()
+/* An indicator whose series starts after a president took office cannot be
+   plotted for them. Dimming is a hint, not a lockout -- the chart still says so
+   plainly if you pick only uncovered presidents. */
+.option-uncovered { opacity: 0.45; }
 
-    # Convert date column to Date type
-    market_data_raw$date <- as.Date(market_data_raw$date)
-    
-    # Organize market data by index
-    market_data <- split(market_data_raw, market_data_raw$index_id)
-    
-    return(list(
-      market_data = market_data,
-      presidents_data = presidents_data
-    ))
-  }, error = function(e) {
-    # Return empty data frames if loading fails
-    warning("Error loading data: ", e$message)
-    return(list(
-      market_data = list(),
-      presidents_data = data.frame()
-    ))
-  })
+.check-list label {
+  display: block;
+  margin-bottom: 0.15rem;
+  font-weight: 400;
+}
+.select-row {
+  display: flex;
+  gap: 0.4rem;
+  margin: 0.5rem 0 0.2rem 0;
 }
 
-# Define which indices should use percent change vs absolute values
-get_index_types <- function() {
-  list(
-    # Market indices - use percent change
-    percent_change = c("sp500", "djia", "nasdaq", "dxy"),
-    
-    # Economic indicators - use absolute values
-    absolute = c("unemployment", "inflation", "treasury10yr", "housing", "gdp", "debt_gdp", "labor_participation")
-  )
+/* The indicator blurb above the chart. */
+.indicator-note {
+  background: #f4f7fb;
+  border-left: 4px solid #2166ac;
+  border-radius: 4px;
+  padding: 0.7rem 1rem;
+  margin-bottom: 0.9rem;
+  font-size: 0.95rem;
+  color: #2b2b2b;
+}
+.indicator-note p { margin-bottom: 0; }
+
+.chart-card {
+  background: #fff;
+  border: 1px solid #e3e6ec;
+  border-radius: 10px;
+  padding: 0.75rem 1rem 1rem 1rem;
 }
 
-# Function to process market data for selected presidents and reference date
-process_market_data <- function(market_data,
-                                presidents_data,
-                                selected_index,
-                                selected_presidents,
-                                reference_type,
-                                party_filter,
-                                days_to_show) {
-  
-  # Check if market data is available
-  if (is.null(market_data) || length(market_data) == 0) {
-    return(data.frame())
-  }
-  
-  # Get index data
-  index_data_list <- list(market_data[[selected_index]])
-  names(index_data_list) <- selected_index
-  
-  # Filter presidents by party and selection
-  filtered_presidents <- presidents_data %>%
-    filter(party %in% party_filter, president %in% selected_presidents)
-  
-  # If no presidents selected, return empty dataframe
-  if (nrow(filtered_presidents) == 0) {
-    return(data.frame())
-  }
-  
-  # Process data for each selected president and index
-  result_data <- data.frame()
-  
-  for (pres_i in 1:nrow(filtered_presidents)) {
-    pres_row <- filtered_presidents[pres_i, ]
-    
-    # Determine reference date based on user selection
-    ref_date <- if (reference_type == "inauguration") {
-      pres_row$inauguration_date
-    } else {
-      pres_row$election_date
-    }
-    
-    # Process each index
-    for (idx_id in names(index_data_list)) {
-      index_data <- index_data_list[[idx_id]]
-      
-      # Find closest trading day to reference date
-      closest_ref_date <- index_data %>%
-        filter(date >= ref_date) %>%
-        arrange(date) %>%
-        slice(1) %>%
-        pull(date)
-      
-      if (length(closest_ref_date) == 0) {
-        # Skip if no suitable reference date found
-        next
-      }
-      
-      # Get the reference value
-      ref_value <- index_data %>%
-        filter(date == closest_ref_date) %>%
-        pull(value)
-      
-      # Calculate days from reference and percent change
-      pres_data <- index_data %>%
-        filter(date >= closest_ref_date) %>%
-        mutate(
-          president = pres_row$president,
-          party = pres_row$party,
-          day = as.numeric(difftime(date, closest_ref_date, units = "days")),
-          reference_value = ref_value,
-          percent_change = (value / ref_value - 1) * 100
-        ) %>%
-        filter(day <= days_to_show)
-      
-      result_data <- rbind(result_data, pres_data)
-    }
-  }
-  
-  return(result_data)
+.no-data {
+  min-height: 380px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  color: #6c757d;
+  padding: 2rem;
 }
+.no-data h4 { color: #6c757d; margin-bottom: 1rem; }
+.no-data ul { list-style: none; padding: 0; }
 
-# Function to process economic indicator data that shouldn't use percent change
-process_econ_data <- function(market_data,
-                              presidents_data,
-                              selected_index,
-                              selected_presidents,
-                              reference_type,
-                              party_filter,
-                              days_to_show) {
-
-  # Check if market data is available
-  if (is.null(market_data) || length(market_data) == 0) {
-    return(data.frame())
-  }
-  
-  # Get index data
-  index_data_list <- list(market_data[[selected_index]])
-  names(index_data_list) <- selected_index
-  
-  # Filter presidents by party and selection
-  filtered_presidents <- presidents_data %>%
-    filter(party %in% party_filter, president %in% selected_presidents)
-  
-  # If no presidents selected, return empty dataframe
-  if (nrow(filtered_presidents) == 0) {
-    return(data.frame())
-  }
-  
-  # Process data for each selected president and index
-  result_data <- data.frame()
-  
-  for (pres_i in 1:nrow(filtered_presidents)) {
-    pres_row <- filtered_presidents[pres_i, ]
-    
-    # Determine reference date based on user selection
-    ref_date <- if (reference_type == "inauguration") {
-      pres_row$inauguration_date
-    } else {
-      pres_row$election_date
-    }
-    
-    # Process each index
-    for (idx_id in names(index_data_list)) {
-      index_data <- index_data_list[[idx_id]]
-      
-      # Find closest day to reference date
-      closest_ref_date <- index_data %>%
-        filter(date >= ref_date) %>%
-        arrange(date) %>%
-        slice(1) %>%
-        pull(date)
-      
-      if (length(closest_ref_date) == 0) {
-        # Skip if no suitable reference date found
-        next
-      }
-      
-      # For economic indicators, we show absolute values (not percent change)
-      pres_data <- index_data %>%
-        filter(date >= closest_ref_date) %>%
-        mutate(
-          president = pres_row$president,
-          party = pres_row$party,
-          day = as.numeric(difftime(date, closest_ref_date, units = "days"))
-        ) %>%
-        filter(day <= days_to_show)
-      
-      result_data <- rbind(result_data, pres_data)
-    }
-  }
-  
-  return(result_data)
+/* Hand-rolled slider. The tick row is a positioned strip rather than a flex row
+   so each label sits at its real value along the track, not at an even
+   interval. */
+.slider-value {
+  font-variant-numeric: tabular-nums;
+  color: #2166ac;
 }
-
-# Function to get the appropriate y-axis label for an index
-get_y_axis_label <- function(selected_index) {
-  switch(selected_index,
-         "sp500" = "Percent Change (%)",
-         "djia" = "Percent Change (%)",
-         "nasdaq" = "Percent Change (%)",
-         "dxy" = "Percent Change (%)",
-         "unemployment" = "Unemployment Rate (%)",
-         "inflation" = "Inflation Rate (YoY %)",
-         "treasury10yr" = "10-Year Treasury Yield (%)",
-         "housing" = "Home Price Index",
-         "gdp" = "Real GDP (Billions of 2017 $)",
-         "debt_gdp" = "Federal Debt to GDP Ratio (%)",
-         "labor_participation" = "Labor Force Participation Rate (%)",
-         "Percent Change (%)"  # Default
-  )
+.field input[type="range"] {
+  width: 100%;
+  margin: 0;
+  accent-color: #2166ac;
 }
-
-# Function to get help text for an index with source information
-get_index_help_text <- function(selected_index) {
-  switch(selected_index,
-         "sp500" = "The S&P 500 is a stock market index tracking the performance of 500 large companies listed on U.S. exchanges. Source: Standard & Poor's.",
-         "djia" = "The Dow Jones Industrial Average is a price-weighted index of 30 significant stocks traded on the NYSE and NASDAQ. Source: S&P Dow Jones Indices.",
-         "nasdaq" = "The NASDAQ Composite Index includes all companies listed on the NASDAQ stock market, weighted by market capitalization. Source: NASDAQ, Inc.",
-         "dxy" = "The US Dollar Index measures the dollar against a basket of foreign currencies. A rising value indicates a stronger dollar, which can be good for imports but challenging for exports. Source: ICE Futures U.S.",
-         "unemployment" = "The Unemployment Rate represents the percentage of the labor force that is unemployed but actively seeking employment. Source: U.S. Bureau of Labor Statistics.",
-         "inflation" = "The Inflation Rate measures the year-over-year percentage change in consumer prices as captured by the Consumer Price Index (CPI). Source: U.S. Bureau of Labor Statistics.",
-         "treasury10yr" = "The 10-Year Treasury Yield reflects market expectations about future growth and inflation. Lower yields generally indicate economic pessimism or lower inflation expectations. Source: U.S. Department of the Treasury.",
-         "housing" = "The Case-Shiller Home Price Index tracks changes in the value of residential real estate nationwide. Source: S&P CoreLogic.",
-         "gdp" = "Real Gross Domestic Product is the inflation-adjusted value of all goods and services produced by an economy. Source: U.S. Bureau of Economic Analysis.",
-         "debt_gdp" = "The Federal Debt to GDP Ratio shows government debt as a percentage of annual economic output, a measure of fiscal sustainability. Source: U.S. Treasury and Bureau of Economic Analysis.",
-         "labor_participation" = "The Labor Force Participation Rate shows the percentage of the population that is either employed or actively seeking employment. Source: U.S. Bureau of Labor Statistics.",
-         ""  # Default - no special help text
-  )
+.slider-ticks {
+  position: relative;
+  height: 1.1rem;
+  margin-top: 0.15rem;
+  font-size: 0.75rem;
+  color: #6c757d;
 }
+.slider-ticks span {
+  position: absolute;
+  transform: translateX(-50%);
+  font-variant-numeric: tabular-nums;
+}
+/* The range thumb has width, so the track's usable span is inset by half a thumb
+   at each end; nudge the outermost ticks back over the real endpoints. */
+.slider-ticks span:first-child { transform: none; }
+.slider-ticks span:last-child { transform: translateX(-100%); }
 
-#-------------------------------------------
-# UI Definition ----
-#-------------------------------------------
+/* The morph theme styles .btn with a neumorphic shadow, which reads as an
+   accident next to the flat cards. These are plain outline buttons instead. */
+.download-row {
+  display: flex;
+  gap: 0.5rem;
+  margin: 0.75rem 0 0.25rem 0;
+}
+.download-btn, .mini-btn,
+.panel-sidebar .mini-btn.btn {
+  font: inherit;
+  color: #2b2b2b;
+  background: #fff;
+  border: 1px solid #c9cfd8;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.download-btn { font-size: 0.9rem; padding: 0.35rem 0.85rem; }
+.mini-btn, .panel-sidebar .mini-btn.btn {
+  font-size: 0.8rem;
+  padding: 0.2rem 0.5rem;
+  border: 1px solid #c9cfd8;
+  background: #fff;
+  color: #2b2b2b;
+  box-shadow: none;
+}
+.download-btn:hover, .mini-btn:hover { background: #f2f5f9; border-color: #9aa5b4; }
+.download-btn:active, .mini-btn:active { background: #e8edf4; }
+</style>
+```
 
-ui <- fluidPage(
+```{ojs}
+//| echo: false
+// Metadata for all eleven indicators, no series data -- about 7 KB. The series
+// itself is fetched only when its indicator is selected.
+indicators = FileAttachment("data/indicators.json").json()
+presidents = FileAttachment("data/presidents.json").json()
 
-  titlePanel(""),
+indicatorById = new Map(indicators.map(d => [d.id, d]))
+```
 
-  sidebarLayout(
-    sidebarPanel(
-      # Index selection
-      radioButtons("selected_index", "Select Economic Indicator:",
-                   choices = list(
-                     # Market Indices
-                     "S&P 500" = "sp500", 
-                     "Dow Jones" = "djia",
-                     "NASDAQ" = "nasdaq",
-                     "US Dollar Index" = "dxy",
-                     
-                     # Economic Indicators
-                     "Unemployment Rate" = "unemployment",
-                     "Inflation Rate" = "inflation",
-                     "10-Year Treasury Yield" = "treasury10yr",
-                     "Home Price Index" = "housing",
-                     "Real GDP" = "gdp",
-                     "Federal Debt to GDP Ratio" = "debt_gdp",
-                     "Labor Force Participation" = "labor_participation"
-                   ),
-                   selected = "sp500"),
-      
-      # Baseline selection
-      radioButtons("reference_date", "Reference Date:",
-                   choices = list(
-                     "Inauguration Day" = "inauguration", 
-                     "Day Before Election" = "election"
-                   ),
-                   selected = "inauguration"),
-      
-      # Time period selection
-      sliderInput("time_period", "Days to Display:",
-                  min = 10, max = 365*4, value = 100, step = 10),
-      
-      # Party filter
-      checkboxGroupInput("party_filter", "Filter by Party:",
-                         choices = c("Democratic", "Republican"),
-                         selected = c("Democratic", "Republican")),
-      
-      # President selection buttons
-      div(
-        style = "display: flex; justify-content: space-between; margin-bottom: 10px;",
-        actionButton("select_all", "Select All", class = "btn-sm"),
-        actionButton("deselect_all", "Deselect All", class = "btn-sm")
-      ),
-      
-      # President checkboxes (dynamic)
-      uiOutput("president_selection")
-    ),
-    
-    # Main content
-    mainPanel(
-      # Add the info box above the plot for indicator descriptions
-      uiOutput("index_info_box"),
+::: {.panel-sidebar}
 
-      # Plot or "No Data" message
-      uiOutput("plot_or_message"),
-
-      div(
-        style = "display: flex; justify-content: flex-end; margin-top: 10px;",
-        actionButton("export_plot", "Export Plot", class = "btn-sm"),
-        actionButton("export_data", "Export Data", class = "btn-sm")
-      ),
-      uiOutput("export_modal")
-    )
-  )
+```{ojs}
+//| echo: false
+viewof selectedIndex = Inputs.radio(
+  new Map(indicators.map(d => [d.name, d.id])),
+  {label: "Select Economic Indicator:", value: "sp500"}
 )
 
-#-------------------------------------------
-# Server Logic ----
-#-------------------------------------------
+viewof referenceType = Inputs.radio(
+  new Map([["Inauguration Day", "inauguration"], ["Day Before Election", "election"]]),
+  {label: "Reference Date:", value: "inauguration"}
+)
+```
 
-server <- function(input, output, session) {
-  
-  # Reactive values to store loaded data
-  loaded_data <- reactiveVal(NULL)
-  
-  # Show loading message
-  showModal(modalDialog(
-    title = "Loading Data",
-    "Loading economic data. This may take a moment...",
-    footer = NULL,
-    easyClose = FALSE
-  ))
-  
-  # Load data on startup
-  observe({
-    # Get data
-    data_list <- load_data()
-    
-    # Store the data
-    loaded_data(data_list)
-    
-    # Remove loading message
-    removeModal()
-  })
-  
-  # Index types
-  index_types <- get_index_types()
-  
-  # Update default days depending on starting reference point
-  observeEvent(input$reference_date, {
-    # Calculate appropriate default days based on reference type
-    default_days <- if (input$reference_date == "inauguration") {
-      100  # Default for inauguration
-    } else {
-      180  # Default for election (includes transition period + first 100 days)
-    }
-    
-    # Update the slider with the new default value
-    updateSliderInput(session, "time_period", value = default_days)
-  })
-  
-  # Dynamic UI for president selection - reversed order
-  output$president_selection <- renderUI({
-    data <- loaded_data()
-    
-    if (is.null(data) || nrow(data$presidents_data) == 0) {
-      return(NULL)
-    }
-    
-    # Get presidents from data and reverse the order
-    presidents <- rev(data$presidents_data$president)
-    
-    # Return checkbox group input with reversed order
-    checkboxGroupInput("selected_presidents", 
-                       "Select Presidents:", 
-                       choices = presidents,
-                       selected = head(presidents, 4)) # Select the first 4 presidents in the reversed list (most recent)
-  })
-  
-  # Render indicator info box above the plot
-  output$index_info_box <- renderUI({
-    selected_index <- input$selected_index
-    help_text <- get_index_help_text(selected_index)
-    
-    if (help_text != "") {
-      div(
-        style = "margin-bottom: 15px; padding: 12px; background-color: #f8f9fa; border-left: 4px solid #007bff; border-radius: 5px;",
-        HTML(help_text)
-      )
-    }
-  })
-  
-  # Process data based on user selections
-  processed_data <- reactive({
-    # Get data
-    data <- loaded_data()
-    
-    # Make sure data is loaded
-    req(data, data$market_data, input$selected_presidents)
-    
-    # Get user selections
-    selected_index <- input$selected_index
-    reference_type <- input$reference_date
-    selected_presidents <- input$selected_presidents
-    party_filter <- input$party_filter
-    days_to_show <- input$time_period
-    
-    # Choose the appropriate processing function based on the selected index
-    if (selected_index %in% index_types$absolute) {
-      # For economic indicators, use absolute values
-      return(process_econ_data(
-        data$market_data,
-        data$presidents_data,
-        selected_index,
-        selected_presidents,
-        reference_type,
-        party_filter,
-        days_to_show
-      ))
-    } else {
-      # For market indices, use percent change from reference date
-      return(process_market_data(
-        data$market_data,
-        data$presidents_data,
-        selected_index,
-        selected_presidents,
-        reference_type,
-        party_filter,
-        days_to_show
-      ))
-    }
-  })
-  
-  # Create the ggplot object for the selected data (used for export)
-  create_ggplot <- reactive({
-    # Get processed data
-    plot_data <- processed_data()
-    
-    # Make sure there's data to plot
-    req(nrow(plot_data) > 0)
-    
-    # Reference type for title
-    ref_type <- if (input$reference_date == "inauguration") {
-      "Inauguration Day"
-    } else {
-      "Day Before Election"
-    }
-    
-    # Define party colors
-    party_colors <- c("Democratic" = "blue", "Republican" = "red")
-    
-    # Get y-axis label
-    y_axis_label <- get_y_axis_label(input$selected_index)
-    
-    if (input$selected_index %in% index_types$absolute) {
-      # Plot for economic indicators (absolute values)
-      index_name <- unique(plot_data$index_name)[1]
-      
-      # Get end points for each president
-      end_points <- plot_data %>% 
-        group_by(president, party) %>% 
-        filter(day == max(day)) %>%
-        mutate(label = paste0(president, " (", round(value, 1), ")"))
-      
-      # Create base ggplot with enhanced tooltips
-      p <- ggplot(plot_data, aes(x = day, y = value, color = party, group = president)) +
-        geom_line(size = 1, alpha = 0.8) +
-        geom_point(data = end_points, size = 3) +
-        geom_text_repel(
-          data = end_points,
-          aes(label = label),
-          direction = "y",
-          hjust = 0,
-          vjust = 0,
-          nudge_x = 15,
-          force = 3,
-          segment.size = 0.2,
-          box.padding = 0.5,
-          show.legend = FALSE
-        ) +
-        scale_color_manual(values = party_colors, labels = c("Democratic", "Republican")) +
-        labs(
-          title = paste(index_name, "Since", ref_type),
-          subtitle = paste0("Showing first ", input$time_period, " days"),
-          x = paste("Days Since", ref_type),
-          y = y_axis_label,
-          color = "Party"  # Capitalize Party in legend
-        ) +
-        theme_minimal() +
-        theme(
-          plot.title = element_text(face = "bold"),
-          panel.grid.minor = element_blank(),
-          legend.position = "bottom"
-        ) +
-        # Add extra space on right for labels
-        coord_cartesian(xlim = c(0, max(plot_data$day) * 1.3))
-      
-      # For unemployment and some other metrics, we might want to set y-limits
-      if (input$selected_index == "unemployment") {
-        p <- p + ylim(0, max(plot_data$value) * 1.1)  # Ensure we start at 0 for unemployment
-      }
-      
-      return(p)
-      
-    } else {
-      # Plot for a single market index (percent change)
-      index_name <- unique(plot_data$index_name)[1]
-      
-      # Get end points for each president
-      end_points <- plot_data %>% 
-        group_by(president, party) %>% 
-        filter(day == max(day)) %>%
-        mutate(label = paste0(president, " (", round(percent_change, 1), "%)"))
-      
-      # Create base ggplot with enhanced tooltips
-      p <- ggplot(plot_data, aes(x = day, y = percent_change, color = party, group = president)) +
-        geom_line(size = 1, alpha = 0.8) +
-        geom_point(data = end_points, size = 3) +
-        geom_text_repel(
-          data = end_points,
-          aes(label = label),
-          direction = "y",
-          hjust = 0,
-          vjust = 0,
-          nudge_x = 15,
-          force = 3,
-          segment.size = 0.2,
-          box.padding = 0.5,
-          show.legend = FALSE
-        ) +
-        geom_hline(yintercept = 0, linetype = "dashed", color = "gray50") +
-        scale_color_manual(values = party_colors, labels = c("Democratic", "Republican")) +
-        labs(
-          title = paste(index_name, "Performance Since", ref_type),
-          subtitle = paste0("Showing first ", input$time_period, " days (0% = value on reference date)"),
-          x = paste("Days Since", ref_type),
-          y = y_axis_label,
-          color = "Party"  # Capitalize Party in legend
-        ) +
-        theme_minimal() +
-        theme(
-          plot.title = element_text(face = "bold"),
-          panel.grid.minor = element_blank(),
-          legend.position = "bottom"
-        ) +
-        # Add extra space on right for labels
-        coord_cartesian(xlim = c(0, max(plot_data$day) * 1.3))
-      
-      return(p)
-    }
-  })
+```{ojs}
+//| echo: false
+// Inputs.range puts a full-width number box above the track. A bare track with
+// tick labels underneath reads better, so this is a hand-rolled view:
+// a range input plus a readout and a proportionally-positioned tick row, wired
+// up with the standard Observable custom-view pattern (set `value`, dispatch
+// "input").
+viewof daysToShow = {
+  const min = 10, max = 1460;
+  const ticks = [10, 365, 730, 1095, 1460];
 
-  # Check if we have valid data to plot
-  has_data_to_plot <- reactive({
-    plot_data <- processed_data()
-    # More robust check - ensure we have actual data points for at least one president
-    return(!is.null(plot_data) && nrow(plot_data) > 0 &&
-           length(unique(plot_data$president)) > 0 &&
-           # For percent change indices, make sure we have valid percent_change values
-           (!input$selected_index %in% index_types$percent_change || any(!is.na(plot_data$percent_change))))
-  })
+  const slider = htl.html`<input type="range" min="${min}" max="${max}" step="10" value="360">`;
+  const readout = htl.html`<span class="slider-value">360</span>`;
 
-  # Render either the plot or a "no data" message
-  output$plot_or_message <- renderUI({
-    if (has_data_to_plot()) {
-      # We have data - show the plot
-      tagList(
-        plotlyOutput("economic_plot", height = "100%")
-      )
-    } else {
-      # No data - show a message
-      ref_type <- if (input$reference_date == "inauguration") {
-        "Inauguration Day"
-      } else {
-        "Day Before Election"
-      }
+  const el = htl.html`<div class="field">
+    <label>Days to Display: ${readout}</label>
+    ${slider}
+    <div class="slider-ticks">
+      ${ticks.map(t => htl.html`<span style="left:${(t - min) / (max - min) * 100}%">${t.toLocaleString()}</span>`)}
+    </div>
+  </div>`;
 
-      index_display_name <- switch(input$selected_index,
-                                "sp500" = "S&P 500",
-                                "djia" = "Dow Jones",
-                                "nasdaq" = "NASDAQ",
-                                "dxy" = "US Dollar Index",
-                                "unemployment" = "Unemployment Rate",
-                                "inflation" = "Inflation Rate",
-                                "treasury10yr" = "10-Year Treasury Yield",
-                                "housing" = "Home Price Index",
-                                "gdp" = "Real GDP",
-                                "debt_gdp" = "Federal Debt to GDP Ratio",
-                                "labor_participation" = "Labor Force Participation Rate")
-
-      tagList(
-        div(
-          style = "height: 400px; display: flex; flex-direction: column; justify-content: center; align-items: center; background-color: #f8f9fa; border-radius: 10px; padding: 20px; text-align: center;",
-          tags$h4("Insufficient Data Available", style = "margin-bottom: 15px; color: #6c757d;"),
-          tags$p("Try one of the following:", style = "margin-top: 15px; font-weight: bold;"),
-          tags$ul(
-            style = "list-style-type: none; padding: 0;",
-            tags$li("• Change the reference date", style = "margin-bottom: 5px;"),
-            tags$li("• Select different presidents", style = "margin-bottom: 5px;"),
-            tags$li("• Choose a different time period", style = "margin-bottom: 5px;"),
-            tags$li("• Select a different economic indicator", style = "margin-bottom: 5px;")
-          )
-        )
-      )
-    }
-  })
-
-  # Render the plot - using direct plotly for better performance
-  output$economic_plot <- renderPlotly({
-    # Get processed data
-    plot_data <- processed_data()
-
-    # Make sure there's data to plot
-    req(nrow(plot_data) > 0)
-
-    # Reference type for title
-    ref_type <- if (input$reference_date == "inauguration") {
-      "Inauguration Day"
-    } else {
-      "Day Before Election"
-    }
-
-    # Define party colors
-    party_colors <- c("Democratic" = "blue", "Republican" = "red")
-
-    # Get y-axis label
-    y_axis_label <- get_y_axis_label(input$selected_index)
-
-    if (input$selected_index %in% index_types$absolute) {
-      # Plot for economic indicators (absolute values)
-      index_name <- unique(plot_data$index_name)[1]
-
-      # First create the basic plot structure
-      p <- plot_ly()
-
-      # Process end points first for label creation
-      end_points <- plot_data %>%
-        group_by(president, party) %>%
-        slice(which.max(day)) %>%
-        ungroup()
-
-      # Create a list to store traces for each party
-      democratic_data <- plot_data %>% filter(party == "Democratic")
-      republican_data <- plot_data %>% filter(party == "Republican")
-
-      # Add Democratic party trace if we have data
-      if (nrow(democratic_data) > 0) {
-        dem_presidents <- unique(democratic_data$president)
-
-        for (pres in dem_presidents) {
-          pres_data <- democratic_data %>% filter(president == pres)
-
-          p <- p %>% add_trace(
-            data = pres_data,
-            x = ~day,
-            y = ~value,
-            name = pres,
-            legendgroup = "Democratic",
-            showlegend = FALSE, # Only show in party legend
-            color = I("blue"),
-            type = 'scatter',
-            mode = 'lines',
-            hoverinfo = 'text',
-            text = ~paste0(president, "<br>Day: ", day, "<br>Value: ", round(value, 2)),
-            line = list(width = 2)
-          )
-        }
-
-        # Add a single legend entry for Democratic party
-        if (nrow(democratic_data) > 0) {
-          p <- p %>% add_trace(
-            x = c(0),
-            y = c(0),
-            name = "Democratic",
-            legendgroup = "Democratic",
-            showlegend = TRUE,
-            color = I("blue"),
-            type = 'scatter',
-            mode = 'lines',
-            line = list(width = 4),
-            visible = 'legendonly' # This makes the trace invisible but keeps the legend
-          )
-        }
-      }
-
-      # Add Republican party trace if we have data
-      if (nrow(republican_data) > 0) {
-        rep_presidents <- unique(republican_data$president)
-
-        for (pres in rep_presidents) {
-          pres_data <- republican_data %>% filter(president == pres)
-
-          p <- p %>% add_trace(
-            data = pres_data,
-            x = ~day,
-            y = ~value,
-            name = pres,
-            legendgroup = "Republican",
-            showlegend = FALSE, # Only show in party legend
-            color = I("red"),
-            type = 'scatter',
-            mode = 'lines',
-            hoverinfo = 'text',
-            text = ~paste0(president, "<br>Day: ", day, "<br>Value: ", round(value, 2)),
-            line = list(width = 2)
-          )
-        }
-
-        # Add a single legend entry for Republican party
-        if (nrow(republican_data) > 0) {
-          p <- p %>% add_trace(
-            x = c(0),
-            y = c(0),
-            name = "Republican",
-            legendgroup = "Republican",
-            showlegend = TRUE,
-            color = I("red"),
-            type = 'scatter',
-            mode = 'lines',
-            line = list(width = 4),
-            visible = 'legendonly' # This makes the trace invisible but keeps the legend
-          )
-        }
-      }
-
-      # Add layout
-      p <- p %>% layout(
-        title = list(
-          text = paste(index_name, "Since", ref_type),
-          font = list(size = 16)
-        ),
-        xaxis = list(
-          title = paste("Days Since", ref_type),
-          range = c(0, max(plot_data$day) * 1.3)
-        ),
-        yaxis = list(
-          title = y_axis_label,
-          range = if(input$selected_index == "unemployment") c(0, max(plot_data$value) * 1.1) else NULL
-        ),
-        legend = list(
-          title = list(text = "Party"),
-          orientation = "h",
-          y = -0.2
-        ),
-        margin = list(r = 100)
-      )
-
-      # Add individual annotations for each president
-      for (i in 1:nrow(end_points)) {
-        p <- p %>% add_annotations(
-          x = end_points$day[i],
-          y = end_points$value[i],
-          text = paste0(end_points$president[i], " (", round(end_points$value[i], 1), ")"),
-          showarrow = TRUE,
-          arrowhead = 0,
-          arrowsize = 0.7,
-          arrowwidth = 1,
-          arrowcolor = "gray70",
-          xanchor = "left",
-          yanchor = "middle",
-          ax = 50,
-          ay = 0
-        )
-      }
-
-      p %>% config(displayModeBar = TRUE)
-
-    } else {
-      # Plot for market indices (percent change)
-      index_name <- unique(plot_data$index_name)[1]
-
-      # First create the basic plot structure
-      p <- plot_ly()
-
-      # Process end points first for label creation
-      end_points <- plot_data %>%
-        group_by(president, party) %>%
-        slice(which.max(day)) %>%
-        ungroup()
-
-      # Create a list to store traces for each party
-      democratic_data <- plot_data %>% filter(party == "Democratic")
-      republican_data <- plot_data %>% filter(party == "Republican")
-
-      # Add Democratic party trace if we have data
-      if (nrow(democratic_data) > 0) {
-        dem_presidents <- unique(democratic_data$president)
-
-        for (pres in dem_presidents) {
-          pres_data <- democratic_data %>% filter(president == pres)
-
-          p <- p %>% add_trace(
-            data = pres_data,
-            x = ~day,
-            y = ~percent_change,
-            name = pres,
-            legendgroup = "Democratic",
-            showlegend = FALSE, # Only show in party legend
-            color = I("blue"),
-            type = 'scatter',
-            mode = 'lines',
-            hoverinfo = 'text',
-            text = ~paste0(president, "<br>Day: ", day, "<br>Change: ", round(percent_change, 2), "%"),
-            line = list(width = 2)
-          )
-        }
-
-        # Add a single legend entry for Democratic party
-        if (nrow(democratic_data) > 0) {
-          p <- p %>% add_trace(
-            x = c(0),
-            y = c(0),
-            name = "Democratic",
-            legendgroup = "Democratic",
-            showlegend = TRUE,
-            color = I("blue"),
-            type = 'scatter',
-            mode = 'lines',
-            line = list(width = 4),
-            visible = 'legendonly' # This makes the trace invisible but keeps the legend
-          )
-        }
-      }
-
-      # Add Republican party trace if we have data
-      if (nrow(republican_data) > 0) {
-        rep_presidents <- unique(republican_data$president)
-
-        for (pres in rep_presidents) {
-          pres_data <- republican_data %>% filter(president == pres)
-
-          p <- p %>% add_trace(
-            data = pres_data,
-            x = ~day,
-            y = ~percent_change,
-            name = pres,
-            legendgroup = "Republican",
-            showlegend = FALSE, # Only show in party legend
-            color = I("red"),
-            type = 'scatter',
-            mode = 'lines',
-            hoverinfo = 'text',
-            text = ~paste0(president, "<br>Day: ", day, "<br>Change: ", round(percent_change, 2), "%"),
-            line = list(width = 2)
-          )
-        }
-
-        # Add a single legend entry for Republican party
-        if (nrow(republican_data) > 0) {
-          p <- p %>% add_trace(
-            x = c(0),
-            y = c(0),
-            name = "Republican",
-            legendgroup = "Republican",
-            showlegend = TRUE,
-            color = I("red"),
-            type = 'scatter',
-            mode = 'lines',
-            line = list(width = 4),
-            visible = 'legendonly' # This makes the trace invisible but keeps the legend
-          )
-        }
-      }
-
-      # Add layout
-      p <- p %>% layout(
-        title = list(
-          text = paste(index_name, "Performance Since", ref_type),
-          font = list(size = 16)
-        ),
-        xaxis = list(
-          title = paste("Days Since", ref_type),
-          range = c(0, max(plot_data$day) * 1.3)
-        ),
-        yaxis = list(
-          title = y_axis_label,
-          zeroline = TRUE
-        ),
-        shapes = list(
-          # Add zero line
-          list(
-            type = "line",
-            x0 = 0,
-            x1 = max(plot_data$day) * 1.3,
-            y0 = 0,
-            y1 = 0,
-            line = list(
-              color = "gray",
-              width = 1,
-              dash = "dash"
-            )
-          )
-        ),
-        legend = list(
-          title = list(text = "Party"),
-          orientation = "h",
-          y = -0.2
-        ),
-        margin = list(r = 100)
-      )
-
-      # Add individual annotations for each president
-      for (i in 1:nrow(end_points)) {
-        p <- p %>% add_annotations(
-          x = end_points$day[i],
-          y = end_points$percent_change[i],
-          text = paste0(end_points$president[i], " (", round(end_points$percent_change[i], 1), "%)"),
-          showarrow = TRUE,
-          arrowhead = 0,
-          arrowsize = 0.7,
-          arrowwidth = 1,
-          arrowcolor = "gray70",
-          xanchor = "left",
-          yanchor = "middle",
-          ax = 50,
-          ay = 0
-        )
-      }
-
-      p %>% config(displayModeBar = TRUE)
-    }
-  })
-
-  
-  # Handle select all button
-  observeEvent(input$select_all, {
-    data <- loaded_data()
-    req(data, data$presidents_data)
-    
-    # Get reversed president list to match the UI
-    presidents <- rev(data$presidents_data$president)
-    
-    updateCheckboxGroupInput(session, "selected_presidents",
-                             choices = presidents,
-                             selected = presidents)
-  })
-  
-  # Handle deselect all button
-  observeEvent(input$deselect_all, {
-    data <- loaded_data()
-    req(data, data$presidents_data)
-    
-    # Get reversed president list to match the UI
-    presidents <- rev(data$presidents_data$president)
-    
-    updateCheckboxGroupInput(session, "selected_presidents",
-                             choices = presidents,
-                             selected = character(0))
-  })
-  
-  # Export plot handler - with embedded URL in caption and more right space
-  observeEvent(input$export_plot, {
-    req(processed_data())
-    
-    # Use the ggplot object for export
-    p <- create_ggplot()
-    
-    # Add caption with source URL to the ggplot
-    p <- p + labs(
-      caption = paste0("Generated on ", Sys.Date(), " from https://jhelvy.github.io/potus-econ-scorecard/")
-    ) +
-    theme(
-      plot.title = element_text(face = "bold", size = 16),
-      plot.subtitle = element_text(size = 12),
-      plot.caption = element_text(size = 9, hjust = 0)
-    )
-    
-    # Show the plot in a modal with save instructions
-    showModal(
-      modalDialog(
-        title = "Plot Export",
-        size = "l",
-        plotOutput("export_plot_preview", height = "500px"),
-        hr(),
-        tags$div(
-          style = "text-align: center;",
-          tags$p("To save this image, right-click on the plot above and select 'Save image as...'")
-        ),
-        footer = tagList(
-          modalButton("Close")
-        )
-      )
-    )
-    
-    output$export_plot_preview <- renderPlot({
-      p
-    }, height = 500, width = 800, res = 100)  # Increased resolution for better quality
-  })
-  
-  # Export data handler - client-side download approach
-  observeEvent(input$export_data, {
-    req(processed_data())
-    export_data <- processed_data() %>%
-      mutate(
-        reference_type = if(input$reference_date == "inauguration") "Inauguration Day" else "Day Before Election",
-        data_generated = as.character(Sys.Date())
-      )
-    
-    # Create a unique ID for this download
-    download_id <- paste0("download_", round(runif(1, 1, 100000)))
-    
-    # Convert data to CSV format
-    csv_content <- reactive({
-      # Create the header row
-      headers <- paste(colnames(export_data), collapse = ",")
-      
-      # Create data rows (escaping any commas in string fields)
-      rows <- apply(export_data, 1, function(row) {
-        # Convert row values to character and handle special cases
-        row_vals <- sapply(row, function(val) {
-          if (is.character(val) && grepl(",", val)) {
-            # Wrap strings containing commas in quotes
-            return(paste0('"', val, '"'))
-          } else {
-            return(as.character(val))
-          }
-        })
-        paste(row_vals, collapse = ",")
-      })
-      
-      # Combine header and rows
-      csv_data <- paste(c(headers, rows), collapse = "\n")
-      return(csv_data)
-    })
-    
-    # Get index name for the filename
-    index_name <- switch(input$selected_index,
-                       "sp500" = "SP500",
-                       "djia" = "DowJones",
-                       "nasdaq" = "NASDAQ",
-                       "dxy" = "USDollarIndex",
-                       "unemployment" = "Unemployment",
-                       "inflation" = "Inflation",
-                       "treasury10yr" = "TreasuryYield",
-                       "housing" = "HomePriceIndex",
-                       "gdp" = "RealGDP",
-                       "debt_gdp" = "DebtToGDP",
-                       "labor_participation" = "LaborParticipation")
-    
-    filename <- paste0(index_name, "_data_", Sys.Date(), ".csv")
-    
-    # Create modal with preview and client-side download link
-    showModal(
-      modalDialog(
-        title = "Data Export",
-        size = "l",
-        p("The complete dataset is ready for download."),
-        p(paste0("Number of rows in dataset: ", nrow(export_data))),
-        
-        # Display a small preview of the data
-        tags$div(
-          style = "max-height: 300px; overflow-y: auto;",
-          renderTable({
-            head(export_data, 10)  # Show just first 10 rows as preview
-          })
-        ),
-        
-        # Add JavaScript to enable client-side download
-        tags$script(HTML(sprintf(
-          "
-          function downloadCSV() {
-            var csvContent = %s;
-            var blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-            var link = document.createElement('a');
-            link.href = URL.createObjectURL(blob);
-            link.setAttribute('download', '%s');
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-          }
-          ",
-          paste0("document.getElementById('", download_id, "').getAttribute('data-csv')"),
-          filename
-        ))),
-        
-        # Hidden span to store the CSV data
-        tags$span(
-          id = download_id,
-          style = "display: none;",
-          `data-csv` = csv_content()
-        ),
-        
-        footer = tagList(
-          modalButton("Close"),
-          tags$button(
-            "Download Complete Dataset",
-            class = "btn btn-primary",
-            onclick = "downloadCSV()"
-          )
-        )
-      )
-    )
-  })
+  el.value = +slider.value;
+  slider.oninput = () => {
+    el.value = +slider.value;
+    readout.textContent = el.value.toLocaleString();
+    el.dispatchEvent(new CustomEvent("input"));
+  };
+  return el;
 }
 
-#-------------------------------------------
-# Run the application
-#-------------------------------------------
-shinyApp(ui, server)
+viewof partyFilter = Inputs.checkbox(
+  ["Democratic", "Republican"],
+  {label: "Filter by Party:", value: ["Democratic", "Republican"]}
+)
+```
+
+```{ojs}
+//| echo: false
+// The president picker is hand-rolled rather than an Inputs.checkbox so that
+// Select All / Deselect All can write back into it, and so that presidents the
+// current series cannot cover can be dimmed.
+viewof selectedPresidents = {
+  const names = presidents.map(p => p.president).slice().reverse();
+  const initial = ["Trump (2025)", "Biden (2021)", "Trump (2017)", "Obama (2013)"];
+
+  // htl rejects an interpolated bare attribute, so `checked` is set on the
+  // element after it is built rather than templated into the tag.
+  const boxes = new Map(names.map(name => {
+    const box = htl.html`<input type="checkbox">`;
+    box.checked = initial.includes(name);
+    return [name, box];
+  }));
+
+  const selectAll = htl.html`<button class="mini-btn">Select All</button>`;
+  const deselectAll = htl.html`<button class="mini-btn">Deselect All</button>`;
+
+  const el = htl.html`<div class="field">
+    <label>Select Presidents:</label>
+    <div class="select-row">${selectAll}${deselectAll}</div>
+    <div class="check-list">
+      ${names.map(name => htl.html`<label data-president="${name}">${boxes.get(name)}${name}</label>`)}
+    </div>
+  </div>`;
+
+  const sync = () => {
+    el.value = names.filter(n => boxes.get(n).checked);
+    el.dispatchEvent(new CustomEvent("input"));
+  };
+
+  for (const box of boxes.values()) box.onchange = sync;
+  selectAll.onclick = () => { for (const b of boxes.values()) b.checked = true; sync(); };
+  deselectAll.onclick = () => { for (const b of boxes.values()) b.checked = false; sync(); };
+
+  el.value = names.filter(n => boxes.get(n).checked);
+  return el;
+}
+```
+
+```{ojs}
+//| echo: false
+// Dim the presidents the selected series does not reach back far enough to
+// cover. This runs as a side effect on the already-rendered picker rather than
+// rebuilding it, so the user's selection survives an indicator change.
+coverageHint = {
+  const covered = new Set(meta.covers);
+  for (const label of viewof selectedPresidents.querySelectorAll("[data-president]")) {
+    const name = label.dataset.president;
+    const ok = covered.has(name);
+    label.classList.toggle("option-uncovered", !ok);
+    label.title = ok ? "" : `${meta.name} data starts ${meta.first_date}, after this inauguration`;
+  }
+  return covered;
+}
+```
+
+:::
+
+::: {.panel-fill}
+
+```{ojs}
+//| echo: false
+meta = indicatorById.get(selectedIndex)
+
+// Only the selected series is fetched. FileAttachment needs a literal path, so
+// this is a plain fetch; the files are declared as project resources.
+series = {
+  const res = await fetch(`data/${selectedIndex}.json`);
+  if (!res.ok) throw new Error(`could not load data/${selectedIndex}.json (${res.status})`);
+  return res.json();
+}
+
+points = series.dates.map((d, i) => ({date: d, value: series.values[i]}))
+
+dayNumber = {
+  const ms = 86400000;
+  return (a, b) => Math.round((Date.parse(a + "T00:00:00Z") - Date.parse(b + "T00:00:00Z")) / ms);
+}
+```
+
+```{ojs}
+//| echo: false
+html`<div class="indicator-note">${meta.description}</div>`
+```
+
+```{ojs}
+//| echo: false
+// Percent-change and absolute-value indicators differ only in whether the
+// series is re-indexed to its reference value, so this is one pass with a flag.
+// (The retired Shiny app split this into process_market_data() and
+// process_econ_data(); see the history before the OJS rewrite.)
+//
+// The one deliberate change is the !isNaN guard when picking the reference
+// observation: the Shiny app takes the first row on or after the reference date
+// without checking for a missing value, which is what blanked out the dollar
+// index on inauguration days falling on a federal holiday.
+plotData = {
+  const isPercent = meta.type === "percent_change";
+  const chosen = presidents.filter(p =>
+    selectedPresidents.includes(p.president) && partyFilter.includes(p.party)
+  );
+  const rows = [];
+
+  for (const pres of chosen) {
+    const refDate = referenceType === "inauguration" ? pres.inauguration_date : pres.election_date;
+
+    const start = points.findIndex(d => d.date >= refDate && d.value != null && !isNaN(d.value));
+    if (start === -1) continue;
+
+    // The reference observation has to actually be near the reference date. The
+    // Shiny app takes the first row on or after it with no distance check, so
+    // asking for the Home Price Index under Eisenhower silently anchors day 0 to
+    // January 1987 and draws thirty years of the wrong presidency. The widest
+    // legitimate gap is a quarterly series reporting up to ~92 days later, so
+    // 180 days leaves room without admitting a decades-wide jump.
+    if (dayNumber(points[start].date, refDate) > 180) continue;
+
+    const refValue = points[start].value;
+    const refDay = points[start].date;
+
+    for (let i = start; i < points.length; i++) {
+      const day = dayNumber(points[i].date, refDay);
+      if (day > daysToShow) break;
+      rows.push({
+        president: pres.president,
+        party: pres.party,
+        date: points[i].date,
+        day,
+        value: points[i].value,
+        percent_change: isPercent ? (points[i].value / refValue - 1) * 100 : null,
+        plotted: isPercent ? (points[i].value / refValue - 1) * 100 : points[i].value
+      });
+    }
+  }
+  return rows;
+}
+
+hasData = plotData.length > 0 && plotData.some(d => d.plotted != null && !isNaN(d.plotted))
+```
+
+::: {.chart-card}
+
+```{ojs}
+//| echo: false
+// Quarto's `width` is the width of the page column, not of the card the chart
+// actually sits in. Authoring the SVG at that width and letting Plot's own
+// `max-width: 100%` squash it into the card scaled everything down by a third,
+// so a 15px label rendered at 10px. Measuring the card directly keeps the SVG at
+// its natural size, which means the font sizes below are the sizes on screen.
+chartWidth = {
+  const card = document.querySelector(".chart-card");
+  if (!card) return Math.max(560, Math.min(1200, width));
+
+  const inner = () => {
+    const cs = getComputedStyle(card);
+    return card.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+  };
+  const clamp = w => Math.max(560, Math.min(1200, Math.floor(w)));
+
+  return Generators.observe(notify => {
+    const ro = new ResizeObserver(() => notify(clamp(inner())));
+    ro.observe(card);
+    notify(clamp(inner()));
+    return () => ro.disconnect();
+  });
+}
+
+// A fixed height would go squat on a narrow window and letterboxed on a wide one.
+plotHeight = Math.round(Math.max(430, Math.min(620, chartWidth * 0.60)))
+
+marginTop = 78
+marginBottom = 92
+
+plotAreaHeight = plotHeight - marginTop - marginBottom
+
+// The y domain is computed here rather than left to Plot's `nice`/`zero`,
+// because the declutter below has to know the axis extent exactly. Deriving it
+// from the data range instead was wrong wherever the axis is wider than the
+// data -- pinning unemployment to zero stretches the axis to 0-10 while the
+// values only span 3.4-10, and the gap came out a third too small.
+yDomain = {
+  const values = plotData.map(d => d.plotted).filter(v => v != null && !isNaN(v));
+  if (values.length === 0) return [0, 1];
+
+  const lo = Math.min(...values), hi = Math.max(...values);
+  const pad = (hi - lo || Math.abs(hi) || 1) * 0.06;
+
+  // The Shiny app pins unemployment to a zero baseline; a rate charted on a
+  // floating axis exaggerates small moves.
+  return meta.id === "unemployment" ? [0, hi + pad] : [lo - pad, hi + pad];
+}
+
+// With every president selected there are nineteen labels to stack, and at a
+// fixed line height they need more room than the plot area has. Shrinking the
+// type as the list grows is what keeps them from colliding.
+labelCount = new Set(plotData.map(d => d.president)).size
+
+// 1.35 rather than the font size itself: a rendered text box is noticeably
+// taller than its nominal size, so spacing labels by font size alone left them
+// touching by a pixel or two.
+labelFontSize = Math.max(9, Math.min(15,
+  Math.floor(plotAreaHeight / Math.max(labelCount, 1) / 1.35)))
+
+labelLineHeight = Math.ceil(labelFontSize * 1.35)
+
+maxDay = plotData.length ? Math.max(...plotData.map(d => d.day)) : daysToShow
+
+partyColor = ({Democratic: "#2166ac", Republican: "#b2182b"})
+
+// Roboto Condensed, with a condensed-first fallback chain so a failed webfont
+// load degrades to something of a similar width rather than to a wide default.
+fontStack = "'Roboto Condensed', 'Helvetica Neue Condensed', 'Arial Narrow', system-ui, sans-serif"
+
+refLabel = referenceType === "inauguration" ? "Inauguration Day" : "Day Before Election"
+
+// The left margin has to clear the widest tick label plus the rotated axis
+// title. A fixed 74px was enough for "-30%" but not for "24,000", so the GDP
+// ticks ran straight through the title text. Measure the formatted domain
+// endpoints instead -- they bound the tick labels -- and size the margin to fit.
+yAxisMetrics = {
+  const isPercent = meta.type === "percent_change";
+  const fmt = d => isPercent
+    ? `${Math.round(d)}%`
+    : Math.abs(d) >= 1000
+      ? Math.round(d).toLocaleString("en-US")
+      : String(Math.round(d * 10) / 10);
+  const ctx = document.createElement("canvas").getContext("2d");
+  ctx.font = `16px ${fontStack}`;
+  const tickWidth = Math.max(...yDomain.map(d => ctx.measureText(fmt(d)).width));
+  // 14px of clearance between the tick text and the tick mark, 26px for the
+  // rotated title and its own breathing room.
+  const marginLeft = Math.max(74, Math.ceil(tickWidth) + 14 + 26);
+  return {marginLeft, labelOffset: marginLeft - 13};
+}
+
+// The Shiny app formats the end-label value as a percentage for the market
+// indices and as a bare number for everything else.
+formatValue = meta.type === "percent_change"
+  ? (v => `${v.toFixed(1)}%`)
+  : (v => v.toFixed(1))
+```
+
+```{ojs}
+//| echo: false
+// The last observation for each president, used for the direct end-labels that
+// stand in for a colour legend.
+endPoints = {
+  const last = new Map();
+  for (const row of plotData) {
+    const prev = last.get(row.president);
+    if (!prev || row.day > prev.day) last.set(row.president, row);
+  }
+
+  const ends = Array.from(last.values())
+    .map(d => ({...d, label: `${d.president} (${formatValue(d.plotted)})`, labelY: d.plotted}))
+    .sort((a, b) => a.plotted - b.plotted);
+
+  // A stand-in for ggrepel. An iterative push-apart looked fine at four labels
+  // but converged far too slowly at nineteen, where the labels start clustered
+  // and need to spread across most of the axis. This is the exact two-pass
+  // version instead: sweep up enforcing the minimum gap, and if that overshoots
+  // the top of the axis, sweep back down from it.
+  //
+  // The gap is in data units, derived from the axis extent rather than the range
+  // of the labels themselves: when every president lands in a narrow band the
+  // label range is tiny while the axis is still wide, and scaling by the label
+  // range asks for a gap far smaller than a line of text.
+  const axisExtent = yDomain[1] - yDomain[0];
+  const minGap = (axisExtent || 1) * (labelLineHeight / plotAreaHeight);
+
+  for (let i = 1; i < ends.length; i++) {
+    ends[i].labelY = Math.max(ends[i].labelY, ends[i - 1].labelY + minGap);
+  }
+
+  const top = yDomain[1];
+  if (ends.length && ends[ends.length - 1].labelY > top) {
+    ends[ends.length - 1].labelY = top;
+    for (let i = ends.length - 2; i >= 0; i--) {
+      ends[i].labelY = Math.min(ends[i].labelY, ends[i + 1].labelY - minGap);
+    }
+  }
+
+  return ends;
+}
+```
+
+```{ojs}
+//| echo: false
+chart = {
+  if (!hasData) return noDataMessage();
+
+  const isPercent = meta.type === "percent_change";
+
+  const svg = Plot.plot({
+    width: chartWidth,
+    height: plotHeight,
+    marginTop: marginTop,
+    marginRight: 205,
+    marginLeft: yAxisMetrics.marginLeft,
+    marginBottom: marginBottom,
+    style: {
+      background: "white",
+      color: "#2b2b2b",
+      fontFamily: fontStack,
+      // Drives the tick labels. Roboto Condensed sets narrow, so it needs a
+      // couple of points more than a normal-width face to read at the same size.
+      fontSize: "16px"
+    },
+    x: {
+      label: `Days Since ${refLabel}`,
+      labelAnchor: "center",
+      labelArrow: "none",
+      labelOffset: 56,
+      grid: true,
+      // An explicit domain rather than `nice: true`, which rounded the axis out
+      // to 400 when the data stopped at 360. The end-labels live in marginRight,
+      // so no slack is needed inside the plot area to fit them.
+      domain: [0, maxDay]
+    },
+    y: {
+      label: meta.y_label,
+      labelAnchor: "center",
+      labelArrow: "none",
+      labelOffset: yAxisMetrics.labelOffset,
+      grid: true,
+      domain: yDomain,
+      tickFormat: isPercent ? (d => `${d}%`) : undefined
+    },
+    color: {
+      domain: Object.keys(partyColor),
+      range: Object.values(partyColor)
+    },
+    marks: [
+      // The zero line is only meaningful when the series is indexed to it.
+      isPercent ? Plot.ruleY([0], {stroke: "#8c8c8c", strokeWidth: 1}) : null,
+      Plot.line(plotData, {
+        x: "day",
+        y: "plotted",
+        z: "president",
+        stroke: "party",
+        strokeWidth: 1.8,
+        strokeOpacity: 0.9
+      }),
+      Plot.dot(endPoints, {x: "day", y: "plotted", fill: "party", r: 3.5}),
+      // Leader line from the series end out to the label. Labels are pinned to
+      // the right edge of the plot area rather than sitting at their series'
+      // last x: a presidency still in progress ends partway across the chart,
+      // and a label left there lands on top of the other lines.
+      Plot.link(endPoints, {
+        x1: "day",
+        y1: "plotted",
+        x2: () => maxDay,
+        y2: "labelY",
+        stroke: "#bdbdbd",
+        strokeWidth: 1
+      }),
+      Plot.text(endPoints, {
+        x: () => maxDay,
+        y: "labelY",
+        text: "label",
+        fill: "party",
+        dx: 8,
+        textAnchor: "start",
+        fontSize: labelFontSize,
+        fontWeight: 500
+      }),
+      Plot.tip(plotData, Plot.pointer({
+        x: "day",
+        y: "plotted",
+        title: d => `${d.president}\n${d.date}\nDay ${d.day}\n${formatValue(d.plotted)}`
+      }))
+    ].filter(Boolean)
+  });
+
+  const verb = isPercent ? "Performance Since" : "Since";
+  const subtitle = isPercent
+    ? `Showing first ${daysToShow} days (0% = value on reference date)`
+    : `Showing first ${daysToShow} days`;
+
+  addSvgText(svg, [
+    {text: `${meta.name} ${verb} ${refLabel}`, x: 6, y: 28, size: 23, weight: 700},
+    {text: subtitle, x: 6, y: 54, size: 16, weight: 400, fill: "#666"}
+  ]);
+
+  // Plot has no separate size for the axis titles; they inherit the tick size.
+  // Bump them afterwards so they sit above the ticks in the hierarchy.
+  for (const sel of ["x-axis label", "y-axis label"]) {
+    const t = svg.querySelector(`g[aria-label="${sel}"] text`);
+    if (t) t.setAttribute("font-size", 18);
+  }
+
+  addSvgLegend(svg, chartWidth - 205, plotHeight - 14);
+
+  return svg;
+}
+```
+
+:::
+
+```{ojs}
+//| echo: false
+buttons = {
+  const stamp = new Date().toISOString().slice(0, 10);
+  const slug = `${selectedIndex}_${referenceType}_${daysToShow}d_${stamp}`;
+
+  const pngButton = htl.html`<button class="download-btn">Download PNG</button>`;
+  pngButton.onclick = () => downloadPng(chart, `${slug}.png`);
+
+  const csvButton = htl.html`<button class="download-btn">Download CSV</button>`;
+  csvButton.onclick = () => downloadCsv(plotData, `${slug}.csv`);
+
+  // Disabled rather than removed when there is nothing to export. Returning an
+  // empty fragment from this cell left the container in a state where the
+  // buttons came back present but invisible on the next render, and keeping the
+  // row in place also stops the page reflowing every time the chart empties.
+  for (const b of [pngButton, csvButton]) {
+    b.disabled = !hasData;
+    b.style.opacity = hasData ? "" : "0.45";
+    b.style.cursor = hasData ? "pointer" : "not-allowed";
+  }
+
+  return htl.html`<div class="download-row">${pngButton}${csvButton}</div>`;
+}
+```
+
+:::
+
+```{ojs}
+//| echo: false
+// Stands in for the chart when nothing can be plotted -- most often because the
+// selected series starts after every selected president took office.
+function noDataMessage() {
+  // Two different reasons land here, and blaming coverage when the real problem
+  // is an empty selection sends the reader looking in the wrong place.
+  const chosen = presidents.filter(p =>
+    selectedPresidents.includes(p.president) && partyFilter.includes(p.party)
+  );
+
+  const reason = chosen.length === 0
+    ? htl.html`<p>No presidents are selected.</p>`
+    : htl.html`<p>${meta.name} data begins ${meta.first_date}, which is after
+        ${chosen.length === 1 ? "this presidency" : "every selected presidency"} began.
+        It covers ${meta.covers.length} of ${presidents.length} presidencies.</p>`;
+
+  return htl.html`<div class="no-data">
+    <h4>Insufficient Data Available</h4>
+    ${reason}
+    <p><strong>Try one of the following:</strong></p>
+    <ul>
+      <li>Select a president the series covers</li>
+      <li>Change the reference date</li>
+      <li>Choose a different time period</li>
+      <li>Select a different economic indicator</li>
+    </ul>
+  </div>`;
+}
+```
+
+```{ojs}
+//| echo: false
+// Title, subtitle and caption are written straight into the SVG rather than
+// passed as Plot's title/subtitle/caption options. Those options wrap the chart
+// in a <figure> with HTML siblings, which would not survive serialisation into
+// the PNG. Keeping them inside the SVG makes the download match the screen.
+function addSvgText(svg, items) {
+  const NS = "http://www.w3.org/2000/svg";
+  for (const item of items) {
+    const t = document.createElementNS(NS, "text");
+    t.setAttribute("x", item.x);
+    t.setAttribute("y", item.y);
+    t.setAttribute("font-family", fontStack);
+    t.setAttribute("font-size", item.size);
+    t.setAttribute("font-weight", item.weight);
+    t.setAttribute("fill", item.fill ?? "#2b2b2b");
+    t.setAttribute("text-anchor", "start");
+    t.textContent = item.text;
+    svg.appendChild(t);
+  }
+  return svg;
+}
+
+// The party legend, drawn into the SVG rather than left to Plot's colour legend,
+// which renders as an HTML sibling in a <figure> and so would not survive
+// serialisation into the PNG. Laid out from a fixed left edge with fixed slot
+// widths: the SVG is detached when this runs, so getComputedTextLength() would
+// return 0 and there is nothing to measure against.
+function addSvgLegend(svg, rightX, y) {
+  const NS = "http://www.w3.org/2000/svg";
+  const entries = [["Democratic", partyColor.Democratic], ["Republican", partyColor.Republican]];
+  const slot = 112, swatch = 28, gap = 8;
+  let x = rightX - entries.length * slot;
+
+  for (const [name, color] of entries) {
+    const line = document.createElementNS(NS, "line");
+    line.setAttribute("x1", x);
+    line.setAttribute("x2", x + swatch);
+    line.setAttribute("y1", y - 5);
+    line.setAttribute("y2", y - 5);
+    line.setAttribute("stroke", color);
+    line.setAttribute("stroke-width", 3);
+    svg.appendChild(line);
+
+    const t = document.createElementNS(NS, "text");
+    t.setAttribute("x", x + swatch + gap);
+    t.setAttribute("y", y);
+    t.setAttribute("font-family", fontStack);
+    t.setAttribute("font-size", 15);
+    t.setAttribute("fill", "#2b2b2b");
+    t.setAttribute("text-anchor", "start");
+    t.textContent = name;
+    svg.appendChild(t);
+
+    x += slot;
+  }
+  return svg;
+}
+```
+
+```{ojs}
+//| echo: false
+// A canvas rasterises an SVG in isolation: it does not inherit the page's
+// webfonts, so without this the PNG silently falls back to a system face while
+// the screen shows Roboto Condensed. Fetching the woff2 files and inlining them
+// as data URIs inside the clone is what keeps the two identical. Resolved once
+// and reused; if the fetch fails the export still works, just in the fallback
+// font.
+fontFaceCss = {
+  try {
+    const cssUrl = "https://fonts.googleapis.com/css2?family=Roboto+Condensed:wght@400;500;700&display=swap";
+    const css = await (await fetch(cssUrl)).text();
+
+    // Keep only the latin subset; the other unicode-range blocks would triple
+    // the payload for glyphs this chart never draws.
+    const blocks = css.split("@font-face").slice(1).filter(b => b.includes("U+0000-00FF"));
+
+    const out = [];
+    for (const block of blocks) {
+      const url = block.match(/url\((https:[^)]+\.woff2)\)/)?.[1];
+      const weight = block.match(/font-weight:\s*(\d+)/)?.[1] ?? "400";
+      if (!url) continue;
+      const buf = await (await fetch(url)).arrayBuffer();
+      let bin = "";
+      const bytes = new Uint8Array(buf);
+      for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+      out.push(`@font-face{font-family:'Roboto Condensed';font-style:normal;font-weight:${weight};src:url(data:font/woff2;base64,${btoa(bin)}) format('woff2');}`);
+    }
+    return out.join("");
+  } catch (e) {
+    return "";
+  }
+}
+
+// Rasterise the live SVG at 2x. The chart is a bare <svg> by design -- Plot's
+// built-in colour legend would have wrapped it in a <figure>, so the direct
+// end-labels serve as the legend instead and the whole chart stays serialisable.
+function downloadPng(svgEl, filename, scale = 2) {
+  const width = +svgEl.getAttribute("width");
+  const height = +svgEl.getAttribute("height");
+  const captionHeight = 30;
+
+  const clone = svgEl.cloneNode(true);
+  clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+  clone.setAttribute("width", width);
+  clone.setAttribute("height", height + captionHeight);
+  clone.setAttribute("viewBox", `0 0 ${width} ${height + captionHeight}`);
+
+  // SVG is transparent by default; PNG needs a painted background.
+  const NS = "http://www.w3.org/2000/svg";
+  const bg = document.createElementNS(NS, "rect");
+  bg.setAttribute("width", width);
+  bg.setAttribute("height", height + captionHeight);
+  bg.setAttribute("fill", "white");
+  clone.insertBefore(bg, clone.firstChild);
+
+  if (fontFaceCss) {
+    const style = document.createElementNS(NS, "style");
+    style.textContent = fontFaceCss;
+    clone.insertBefore(style, clone.firstChild);
+  }
+
+  addSvgText(clone, [{
+    text: `Generated on ${new Date().toISOString().slice(0, 10)} from https://jhelvy.github.io/potus-econ-scorecard/`,
+    x: 8,
+    y: height + 20,
+    size: 11,
+    weight: 400,
+    fill: "#777"
+  }]);
+
+  const xml = new XMLSerializer().serializeToString(clone);
+  const url = URL.createObjectURL(new Blob([xml], {type: "image/svg+xml;charset=utf-8"}));
+
+  const img = new Image();
+  // A malformed clone fails the image load with no exception anywhere, which
+  // would look to the user like a button that does nothing.
+  img.onerror = () => {
+    URL.revokeObjectURL(url);
+    console.error("PNG export failed: the chart SVG could not be rasterised");
+  };
+  img.onload = () => {
+    const canvas = document.createElement("canvas");
+    canvas.width = width * scale;
+    canvas.height = (height + captionHeight) * scale;
+    const ctx = canvas.getContext("2d");
+    ctx.scale(scale, scale);
+    ctx.drawImage(img, 0, 0);
+    URL.revokeObjectURL(url);
+    canvas.toBlob(blob => saveBlob(blob, filename), "image/png");
+  };
+  img.src = url;
+}
+
+function downloadCsv(rows, filename) {
+  const columns = ["president", "party", "date", "day", "value", "percent_change"];
+  const escape = v => {
+    const s = v == null ? "" : String(v);
+    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  const csv = [
+    columns.join(","),
+    ...rows.map(r => columns.map(c => escape(r[c])).join(","))
+  ].join("\n");
+  saveBlob(new Blob([csv], {type: "text/csv;charset=utf-8"}), filename);
+}
+
+function saveBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+
+  // Revoking synchronously races the browser: on a large blob the download is
+  // aborted before it starts, silently. Hand the URL back on the next macrotask
+  // instead, once the download has been handed off.
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
+}
 ```

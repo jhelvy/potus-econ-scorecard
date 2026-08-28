@@ -1,175 +1,255 @@
 ###############################################
-# Data Gathering for Presidential Market Performance Comparison App
-# This script fetches and processes market data for later use in the app
+# Data pipeline for the POTUS Economic Scorecard
+#
+# Fetches every indicator, validates each one, and writes the JSON the site
+# loads in the browser.
+#
+# Output, all under data/:
+#   <id>.json        one file per indicator: metadata plus parallel date/value arrays
+#   indicators.json  metadata for every indicator, no series -- drives the selector
+#   presidents.json  the presidents table
 ###############################################
 
-# Load required libraries for data gathering and processing
 library(dplyr)
 library(lubridate)
-library(tidyquant)
-library(tidyr)
+library(quantmod)
+library(jsonlite)
+
+OUT_DIR <- "data"
 
 #-------------------------------------------
-# Data Setup and Helper Functions
+# Indicator registry
 #-------------------------------------------
 
-# Improved error handling for data loading
-tryCatch({
-    presidents_data <- read.csv(
-        "https://raw.githubusercontent.com/jhelvy/presidential-econ-tracker/refs/heads/main/presidents_data.csv", 
-        stringsAsFactors = FALSE
-    )
-    presidents_data$inauguration_date <- as.Date(presidents_data$inauguration_date)
-    presidents_data$election_date <- as.Date(presidents_data$election_date)
+# One row per indicator. `type` decides how the app plots it: percent_change
+# re-indexes each presidency to 0 at its reference date, absolute plots the
+# value as reported.
+indicators <- tibble::tribble(
+  ~id,                   ~name,                        ~source,  ~symbol,      ~type,             ~y_label,
+  "sp500",               "S&P 500",                    "yahoo",  "^GSPC",      "percent_change",  "Percent Change (%)",
+  "djia",                "Dow Jones",                  "yahoo",  "^DJI",       "percent_change",  "Percent Change (%)",
+  "nasdaq",              "NASDAQ",                     "yahoo",  "^IXIC",      "percent_change",  "Percent Change (%)",
+  "dxy",                 "US Dollar Index",            "yahoo",  "DX-Y.NYB",   "percent_change",  "Percent Change (%)",
+  "unemployment",        "Unemployment Rate",          "fred",   "UNRATE",     "absolute",        "Unemployment Rate (%)",
+  "inflation",           "Inflation Rate",             "fred",   "CPIAUCSL",   "absolute",        "Inflation Rate (YoY %)",
+  "treasury10yr",        "10-Year Treasury Yield",     "fred",   "DGS10",      "absolute",        "10-Year Treasury Yield (%)",
+  "housing",             "Home Price Index",           "fred",   "CSUSHPISA",  "absolute",        "Home Price Index",
+  "gdp",                 "Real GDP",                   "fred",   "GDPC1",      "absolute",        "Real GDP (Billions of 2017 $)",
+  "debt_gdp",            "Federal Debt to GDP Ratio",  "fred",   "GFDEGDQ188S","absolute",        "Federal Debt to GDP Ratio (%)",
+  "labor_participation", "Labor Force Participation",  "fred",   "CIVPART",    "absolute",        "Labor Force Participation Rate (%)"
+)
+
+descriptions <- c(
+  sp500               = "The S&P 500 is a stock market index tracking the performance of 500 large companies listed on U.S. exchanges. Source: Standard & Poor's.",
+  djia                = "The Dow Jones Industrial Average is a price-weighted index of 30 significant stocks traded on the NYSE and NASDAQ. Source: S&P Dow Jones Indices.",
+  nasdaq              = "The NASDAQ Composite Index includes all companies listed on the NASDAQ stock market, weighted by market capitalization. Source: NASDAQ, Inc.",
+  dxy                 = "The US Dollar Index measures the dollar against a basket of foreign currencies. A rising value indicates a stronger dollar, which can be good for imports but challenging for exports. Source: ICE Futures U.S.",
+  unemployment        = "The Unemployment Rate represents the percentage of the labor force that is unemployed but actively seeking employment. Source: U.S. Bureau of Labor Statistics.",
+  inflation           = "The Inflation Rate measures the year-over-year percentage change in consumer prices as captured by the Consumer Price Index (CPI). Source: U.S. Bureau of Labor Statistics.",
+  treasury10yr        = "The 10-Year Treasury Yield reflects market expectations about future growth and inflation. Lower yields generally indicate economic pessimism or lower inflation expectations. Source: U.S. Department of the Treasury.",
+  housing             = "The Case-Shiller Home Price Index tracks changes in the value of residential real estate nationwide. Source: S&P CoreLogic.",
+  gdp                 = "Real Gross Domestic Product is the inflation-adjusted value of all goods and services produced by an economy. Source: U.S. Bureau of Economic Analysis.",
+  debt_gdp            = "The Federal Debt to GDP Ratio shows government debt as a percentage of annual economic output, a measure of fiscal sustainability. Source: U.S. Treasury and Bureau of Economic Analysis.",
+  labor_participation = "The Labor Force Participation Rate shows the percentage of the population that is either employed or actively seeking employment. Source: U.S. Bureau of Labor Statistics."
+)
+
+# How stale a series is allowed to be before it counts as a fetch failure.
+# Monthly and quarterly series are published well after the period they cover,
+# so they need a much longer leash than the daily market series.
+max_staleness_days <- c(
+  sp500 = 7, djia = 7, nasdaq = 7, dxy = 7, treasury10yr = 10,
+  unemployment = 70, inflation = 70, labor_participation = 70,
+  housing = 130, gdp = 200,
+  # Debt-to-GDP is quarterly and lands roughly two quarters after the period it
+  # covers, so it is routinely ~8 months behind.
+  debt_gdp = 300
+)
+
+#-------------------------------------------
+# Presidents
+#-------------------------------------------
+
+presidents_data <- tryCatch({
+  d <- read.csv("presidents_data.csv", stringsAsFactors = FALSE)
+  d$inauguration_date <- as.Date(d$inauguration_date)
+  d$election_date <- as.Date(d$election_date)
+  d
 }, error = function(e) {
-    stop(paste("Failed to load presidents data:", e$message))
+  stop("Failed to read presidents_data.csv: ", conditionMessage(e))
 })
 
-# Define market indices to fetch from Yahoo Finance
-market_indices <- data.frame(
-    symbol = c("^GSPC", "^DJI", "^IXIC"),
-    name = c("S&P 500", "Dow Jones", "NASDAQ"),
-    id = c("sp500", "djia", "nasdaq"),
-    stringsAsFactors = FALSE
-)
+earliest_date <- min(presidents_data$election_date) - days(30)
 
-# Define FRED economic indicators to fetch
-fred_indicators <- data.frame(
-    symbol = c("UNRATE", "CPIAUCSL", "DGS10", "CSUSHPISA", "GDPC1", "GFDEGDQ188S", "CIVPART", "DTWEXBGS"),
-    name = c("Unemployment Rate", "Consumer Price Index", "10-Year Treasury Yield", 
-             "Home Price Index", "Real GDP", "Federal Debt to GDP", "Labor Force Participation", "US Dollar Index"),
-    id = c("unemployment", "inflation", "treasury10yr", "housing", "gdp", "debt_gdp", "labor_participation", "dxy"),
-    stringsAsFactors = FALSE
-)
+#-------------------------------------------
+# Fetchers
+#-------------------------------------------
 
-# Function to fetch market data from Yahoo Finance
-fetch_market_data <- function() {
-    tryCatch({
-        # Calculate the earliest date needed
-        earliest_date <- min(presidents_data$election_date) - days(30)
-        
-        # Get the market data using tidyquant
-        message("Fetching market data from Yahoo Finance...")
-        market_data <- tq_get(
-            market_indices$symbol,
-            get = "stock.prices",
-            from = earliest_date,
-            to = Sys.Date()
-        )
-        
-        # Transform the data to match our expected format
-        market_data <- market_data %>%
-            left_join(
-                market_indices %>% select(symbol, id, name),
-                by = c("symbol")
-            ) %>%
-            rename(value = adjusted) %>%
-            select(date, value, index_id = id, index_name = name)
-        
-        return(market_data)
-        
-    }, error = function(e) {
-        warning(paste("Error fetching market data:", e$message))
-        return(data.frame()) # Return empty dataframe in case of error
-    })
+# FRED's keyless CSV endpoint. quantmod::getSymbols.FRED still points at
+# /series/<id>/downloaddata/<id>.csv, which now returns a 301 and fails
+# intermittently over HTTP/2; this endpoint returns 200 for every series we use.
+fetch_fred_series <- function(symbol) {
+  url <- paste0("https://fred.stlouisfed.org/graph/fredgraph.csv?id=", symbol)
+  raw <- read.csv(url, stringsAsFactors = FALSE, na.strings = c(".", "", "NA"))
+
+  # The date column has been renamed over the years; take whichever is present.
+  date_col <- intersect(c("observation_date", "DATE"), names(raw))
+  if (length(date_col) == 0) {
+    stop("no recognisable date column in ", url, " (got: ", paste(names(raw), collapse = ", "), ")")
+  }
+
+  tibble::tibble(
+    date = as.Date(raw[[date_col[1]]]),
+    value = suppressWarnings(as.numeric(raw[[symbol]]))
+  )
 }
 
-# Function to fetch data from FRED
-fetch_fred_data <- function() {
-    tryCatch({
-        # Calculate the earliest date needed
-        earliest_date <- min(presidents_data$election_date) - days(30)
-        
-        # Get all FRED indicators using tidyquant
-        message("Fetching economic data from FRED...")
-        fred_data <- tq_get(
-            fred_indicators$symbol,
-            get = "economic.data",
-            from = earliest_date,
-            to = Sys.Date()
-        )
-        
-        # Transform the data to match our expected format
-        fred_data <- fred_data %>%
-            left_join(
-                fred_indicators %>% select(symbol, id, name),
-                by = c("symbol")
-            ) %>%
-            rename(value = price) %>%
-            select(date, value, index_id = id, index_name = name)
-        
-        # For CPI, convert to year-over-year percent change (inflation rate)
-        inflation_data <- fred_data %>%
-            filter(index_id == "inflation") %>%
-            arrange(date) %>%
-            mutate(
-                prior_year_value = lag(value, 12),
-                value = ((value / prior_year_value) - 1) * 100  # YoY percent change
-            ) %>%
-            filter(!is.na(value)) %>%  # Remove first year where we don't have YoY comparison
-            select(-prior_year_value) %>%  # Remove the helper column
-            mutate(index_name = "Inflation Rate (YoY)")
-        
-        # Replace the original inflation data
-        fred_data <- fred_data %>%
-            filter(index_id != "inflation") %>%
-            bind_rows(inflation_data)
-        
-        return(fred_data)
-        
-    }, error = function(e) {
-        warning(paste("Error fetching FRED data:", e$message))
-        return(data.frame()) # Return empty dataframe in case of error
-    })
+# quantmod directly rather than through tidyquant: tq_get(get = "stock.prices")
+# is a wrapper over exactly this call, and dropping it removes a heavy
+# dependency from the CI build.
+fetch_yahoo_series <- function(symbol) {
+  raw <- getSymbols(symbol, src = "yahoo", from = earliest_date, to = Sys.Date(),
+                    auto.assign = FALSE, warnings = FALSE)
+  adjusted <- raw[, grep("\\.Adjusted$", colnames(raw))[1]]
+  tibble::tibble(
+    date = as.Date(zoo::index(raw)),
+    value = as.numeric(adjusted)
+  )
+}
+
+# CPI is published as an index level; the app shows the year-over-year rate.
+# The lag is by position, so it is only correct on a complete monthly series --
+# hence the gap check before it runs.
+to_yoy <- function(series) {
+  series <- arrange(series, date)
+
+  gaps <- as.numeric(diff(series$date))
+  if (length(gaps) > 0 && max(gaps) > 45) {
+    stop("CPI series has a gap of ", max(gaps), " days; a positional 12-month lag would be wrong")
+  }
+
+  series %>%
+    mutate(value = (value / lag(value, 12) - 1) * 100) %>%
+    filter(!is.na(value))
 }
 
 #-------------------------------------------
-# Main Data Collection Process
+# Fetch every indicator, collecting failures rather than stopping at the first
 #-------------------------------------------
 
-# Fetch all market data
-message("Starting market data collection...")
-market_data <- fetch_market_data()
-market_date_range <- ""
-if (nrow(market_data) > 0) {
-    min_date <- format(min(market_data$date), "%Y-%m-%d")
-    max_date <- format(max(market_data$date), "%Y-%m-%d")
-    market_date_range <- paste("(date range:", min_date, "to", max_date, ")")
+series_list <- list()
+failures <- character()
+
+for (i in seq_len(nrow(indicators))) {
+  ind <- indicators[i, ]
+  message("Fetching ", ind$name, " (", ind$symbol, ") from ", ind$source, " ...")
+
+  series <- tryCatch({
+    s <- if (ind$source == "fred") fetch_fred_series(ind$symbol) else fetch_yahoo_series(ind$symbol)
+    if (ind$id == "inflation") s <- to_yoy(s)
+    s
+  }, error = function(e) {
+    failures <<- c(failures, paste0(ind$id, ": ", conditionMessage(e)))
+    NULL
+  })
+
+  if (is.null(series)) next
+
+  # Drop missing observations at the source rather than leaving them for the
+  # app to trip over. This is what blanked out the dollar index: its reference
+  # value fell on a federal holiday, came back NA, and nulled the whole series.
+  series <- series %>%
+    filter(!is.na(date), !is.na(value), is.finite(value)) %>%
+    distinct(date, .keep_all = TRUE) %>%
+    arrange(date) %>%
+    filter(date >= earliest_date)
+
+  if (nrow(series) == 0) {
+    failures <- c(failures, paste0(ind$id, ": no usable observations after filtering"))
+    next
+  }
+
+  stale_days <- as.numeric(Sys.Date() - max(series$date))
+  allowed <- max_staleness_days[[ind$id]]
+  if (stale_days > allowed) {
+    failures <- c(failures, sprintf(
+      "%s: most recent observation is %s, %d days old (allowed: %d)",
+      ind$id, max(series$date), round(stale_days), allowed
+    ))
+    next
+  }
+
+  series_list[[ind$id]] <- series
+  message("  ", nrow(series), " observations, ", min(series$date), " to ", max(series$date))
 }
-message(paste("Retrieved", nrow(market_data), "rows of market data", market_date_range))
 
-# Fetch all FRED data
-message("Starting FRED data collection...")
-fred_data <- fetch_fred_data()
-fred_date_range <- ""
-if (nrow(fred_data) > 0) {
-    min_date <- format(min(fred_data$date), "%Y-%m-%d")
-    max_date <- format(max(fred_data$date), "%Y-%m-%d")
-    fred_date_range <- paste("(date range:", min_date, "to", max_date, ")")
-}
-message(paste("Retrieved", nrow(fred_data), "rows of FRED data", fred_date_range))
-
-# Check if we have data from both sources
-if (nrow(market_data) == 0 && nrow(fred_data) == 0) {
-    stop("Failed to fetch any data from either Yahoo Finance or FRED")
+# Fail loudly and completely. The old script only aborted when *both* sources
+# came back empty, so a single-source outage silently published a partial
+# dataset that looked fine.
+if (length(failures) > 0) {
+  stop(
+    "Data fetch failed for ", length(failures), " of ", nrow(indicators), " indicators:\n  ",
+    paste(failures, collapse = "\n  ")
+  )
 }
 
-# Combine all data
-message("Combining all data...")
-combined_data <- bind_rows(market_data, fred_data)
+#-------------------------------------------
+# Write the JSON the site loads
+#-------------------------------------------
 
-# Add metadata about when the data was retrieved
-combined_data$data_retrieved <- Sys.Date()
+dir.create(OUT_DIR, showWarnings = FALSE)
 
-# Calculate overall date range
-combined_date_range <- ""
-if (nrow(combined_data) > 0) {
-    min_date <- format(min(combined_data$date), "%Y-%m-%d")
-    max_date <- format(max(combined_data$date), "%Y-%m-%d")
-    combined_date_range <- paste("(date range:", min_date, "to", max_date, ")")
+# Parallel arrays rather than an array of objects: repeating the key names on
+# every observation roughly triples the file size for no gain.
+write_series_json <- function(ind, series, meta) {
+  payload <- c(meta, list(
+    dates = format(series$date, "%Y-%m-%d"),
+    values = round(series$value, 4)
+  ))
+  write_json(payload, file.path(OUT_DIR, paste0(ind$id, ".json")), auto_unbox = TRUE, digits = NA)
 }
 
-# Save the data
-write.csv(combined_data, "market_data.csv", row.names = FALSE)
-message("Data collection complete. Updated market_data.csv file.")
-message(paste("Total rows in final dataset:", nrow(combined_data), combined_date_range))
+meta_list <- list()
+
+for (i in seq_len(nrow(indicators))) {
+  ind <- indicators[i, ]
+  series <- series_list[[ind$id]]
+
+  # Which presidencies this series can actually cover. Several start well after
+  # 1957 -- the dollar index and the Dow especially -- and the app needs to be
+  # able to say so instead of drawing a blank chart.
+  covered <- presidents_data$president[presidents_data$inauguration_date >= min(series$date)]
+
+  meta <- list(
+    id = ind$id,
+    name = ind$name,
+    type = ind$type,
+    y_label = ind$y_label,
+    description = unname(descriptions[[ind$id]]),
+    symbol = ind$symbol,
+    source = ind$source,
+    first_date = format(min(series$date), "%Y-%m-%d"),
+    last_date = format(max(series$date), "%Y-%m-%d"),
+    n = nrow(series),
+    covers = covered
+  )
+
+  write_series_json(ind, series, meta)
+  meta_list[[length(meta_list) + 1]] <- meta
+
+  message(sprintf("  wrote %s.json (%d obs, covers %d of %d presidencies)",
+                  ind$id, nrow(series), length(covered), nrow(presidents_data)))
+}
+
+write_json(meta_list, file.path(OUT_DIR, "indicators.json"), auto_unbox = TRUE, digits = NA)
+
+write_json(
+  presidents_data %>%
+    mutate(
+      inauguration_date = format(inauguration_date, "%Y-%m-%d"),
+      election_date = format(election_date, "%Y-%m-%d")
+    ),
+  file.path(OUT_DIR, "presidents.json"),
+  auto_unbox = TRUE
+)
+
+message("\nDone. ", nrow(indicators), " indicators written to ", OUT_DIR, "/")

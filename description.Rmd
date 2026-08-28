@@ -1,46 +1,58 @@
 ## Overview
 
-POTUS Economic Scorecard is an interactive [Shiny](https://shiny.posit.co/) application that allows users to compare economic performance metrics across different presidential administrations. The app provides visual representations of various economic indicators, including:
+POTUS Economic Scorecard is an interactive web app that compares economic performance across presidential administrations. Pick an indicator, a reference point, and a set of presidents, and the app charts each presidency on a common day-zero axis so the terms line up side by side.
+
+Eleven indicators are available:
+
+**Markets** (charted as percent change from the reference date)
 
 - S&P 500
 - Dow Jones Industrial Average
-- NASDAQ
+- NASDAQ Composite
+- US Dollar Index
+
+**Economic indicators** (charted as absolute values)
+
 - Unemployment Rate
-- Inflation Rate
+- Inflation Rate (year-over-year CPI)
+- 10-Year Treasury Yield
+- Case-Shiller Home Price Index
+- Real GDP
+- Federal Debt to GDP Ratio
+- Labor Force Participation Rate
 
-The app is a static web page that runs entirely in your web browser using [shinylive](https://posit-dev.github.io/r-shinylive/), so it can take a bit to load. 
-
-The app is best viewed in landscape mode on a mobile device.
+Indicators start at different points in history, so not every one covers all 19 presidencies. Presidents the selected indicator cannot cover are dimmed in the sidebar, and selecting only uncovered presidents shows a message explaining when the series begins.
 
 ## Features
 
-- **Multiple Economic Indicators**: Compare performance using S&P 500, Dow Jones, NASDAQ, Unemployment Rate, and Inflation Rate.
-- **Flexible Reference Points**: Choose between "Inauguration Day" or "Day Before Election" as your reference point.
+- **Eleven Economic Indicators**: Four market indices and seven economic series.
+- **Flexible Reference Points**: Choose between "Inauguration Day" and "Day Before Election" as day zero.
 - **Party Filtering**: Filter presidents by political party.
-- **Customizable Time Period**: Adjust the number of days to display for comparison.
-- **Data Export**: Download the plot or raw data for your own analysis
+- **Customizable Time Period**: Adjust the number of days shown, from 10 to 1460.
+- **Data Export**: Download the chart as a PNG or the underlying series as a CSV.
 
 ## How It Works
 
-Historical economic data is downloaded daily and stored in the app [GitHub repository](https://github.com/jhelvy/potus-econ-scorecard). The app loads this data and calculates performance metrics relative to your chosen reference date. For market indices (S&P 500, Dow Jones, NASDAQ), performance is shown as percent change from the reference date. For economic indicators (Unemployment Rate, Inflation Rate), absolute values are displayed.
+Historical data is downloaded daily by a GitHub Actions workflow and committed to the [repository](https://github.com/jhelvy/potus-econ-scorecard) as JSON, one file per indicator. The page loads only the indicator you select and does all of the indexing and charting in the browser, so it renders in about a second.
+
+For market indices, each presidency is indexed to its first observation on or after the reference date and plotted as percent change from that value. For the economic indicators, absolute values are plotted directly.
 
 ## Data Sources
 
-- Market data (S&P 500, Dow Jones, NASDAQ) is sourced from Yahoo Finance
-- Economic indicators are sourced from FRED (Federal Reserve Economic Data)
+- Market data (S&P 500, Dow Jones, NASDAQ, US Dollar Index) comes from Yahoo Finance.
+- Economic indicators come from FRED (Federal Reserve Economic Data).
 
 ## Technology
 
 This application is built using:
 
-- [R Shiny](https://shiny.posit.co/) for the interactive web application.
-- [shinylive](https://posit-dev.github.io/r-shinylive/) for browser-based execution without a server.
+- [Observable JS](https://quarto.org/docs/interactive/ojs/) and [Observable Plot](https://observablehq.com/plot/) for the interactive chart, which runs entirely in the browser with no server and no R.
 - [Quarto](https://quarto.org/) for website publishing.
-- [plotly](https://plotly.com/r/) for interactive visualizations.
+- [R](https://www.r-project.org/), with [quantmod](https://www.quantmod.com/) and [jsonlite](https://jeroen.r-universe.dev/jsonlite), for the daily data pipeline.
 
 ## Local Deployment
 
-To run the app locally:
+To run the site locally:
 
 1. Clone the repository:
 
@@ -49,10 +61,16 @@ To run the app locally:
    cd potus-econ-scorecard
    ```
 
-2. Open the project in RStudio or run from the R console:
-   ```r
-   library(shiny)
-   runApp()
+2. Refresh the data (optional -- the repository already carries a recent copy):
+
+   ```bash
+   Rscript get_data.R
+   ```
+
+3. Preview the site:
+
+   ```bash
+   quarto preview
    ```
 
 ## Contributing
