@@ -313,9 +313,10 @@ html`<div class="indicator-note">${meta.description}</div>`
 
 ```{ojs}
 //| echo: false
-// Port of process_market_data() and process_econ_data() from the Shiny app.
-// Those two differ only in whether the series is re-indexed to its reference
-// value, so this is one pass with a flag.
+// Percent-change and absolute-value indicators differ only in whether the
+// series is re-indexed to its reference value, so this is one pass with a flag.
+// (The retired Shiny app split this into process_market_data() and
+// process_econ_data(); see the history before the OJS rewrite.)
 //
 // The one deliberate change is the !isNaN guard when picking the reference
 // observation: the Shiny app takes the first row on or after the reference date

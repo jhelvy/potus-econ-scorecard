@@ -50,7 +50,11 @@ jobs:
       - name: Render Quarto Project
         uses: quarto-dev/quarto-actions/render@v2
 
+      # A pull_request run still renders, so a broken build fails the check --
+      # but it must not deploy, or opening a PR would push that branch live
+      # before anyone has reviewed it.
       - name: Publish to GitHub Pages
+        if: github.event_name != 'pull_request'
         uses: quarto-dev/quarto-actions/publish@v2
         with:
           target: gh-pages
