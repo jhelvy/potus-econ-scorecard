@@ -7,7 +7,5 @@
 _site
 /.quarto/
 
-**/*.quarto_ipynb
-
 # rmarkdown::render("README.Rmd") leaves this behind
 README.html
