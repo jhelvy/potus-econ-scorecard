@@ -58,7 +58,10 @@ descriptions <- c(
 # so they need a much longer leash than the daily market series.
 max_staleness_days <- c(
   sp500 = 7, djia = 7, nasdaq = 7, dxy = 7, treasury10yr = 10,
-  unemployment = 70, inflation = 70, labor_participation = 70,
+  unemployment = 70, labor_participation = 70,
+  # CPI is dated the 1st of its month but released mid-way through the next
+  # month, so the latest point is ~75 days old just before each release.
+  inflation = 90,
   housing = 130, gdp = 200,
   # Debt-to-GDP is quarterly and lands roughly two quarters after the period it
   # covers, so it is routinely ~8 months behind.
