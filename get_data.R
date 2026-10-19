@@ -53,9 +53,12 @@ descriptions <- c(
   labor_participation = "The Labor Force Participation Rate shows the percentage of the population that is either employed or actively seeking employment. Source: U.S. Bureau of Labor Statistics."
 )
 
-# How stale a series is allowed to be before it counts as a fetch failure.
-# Monthly and quarterly series are published well after the period they cover,
-# so they need a much longer leash than the daily market series.
+# How stale a series can get before the run flags it. Release lags shift with
+# the calendar (and with shutdowns), so crossing this only raises a warning;
+# the run fails outright only past STALE_FAIL_MULTIPLIER times the limit. The
+# check that actually catches a broken fetch is the regression check against
+# the previously published file, further down.
+STALE_FAIL_MULTIPLIER <- 2
 max_staleness_days <- c(
   sp500 = 7, djia = 7, nasdaq = 7, dxy = 7, treasury10yr = 10,
   unemployment = 70, labor_participation = 70,
@@ -135,6 +138,42 @@ to_yoy <- function(series) {
     filter(!is.na(value))
 }
 
+# Yahoo and FRED both drop the odd request ("cannot open the connection");
+# a short retry keeps one blip from failing the whole run.
+with_retries <- function(expr, attempts = 3, wait = 5) {
+  expr <- substitute(expr)
+  env <- parent.frame()
+  for (k in seq_len(attempts)) {
+    result <- tryCatch(eval(expr, env), error = function(e) e)
+    if (!inherits(result, "error")) return(result)
+    if (k < attempts) {
+      message("  attempt ", k, " failed (", conditionMessage(result), "); retrying in ", wait * k, "s")
+      Sys.sleep(wait * k)
+    }
+  }
+  stop(result)
+}
+
+# Compare a fresh fetch with the file the last successful run committed.
+# Returns NULL when it looks fine, otherwise a reason string.
+check_against_published <- function(id, series) {
+  path <- file.path(OUT_DIR, paste0(id, ".json"))
+  if (!file.exists(path)) return(NULL)
+  prev <- tryCatch(fromJSON(path), error = function(e) NULL)
+  if (is.null(prev$last_date) || is.null(prev$n)) return(NULL)
+
+  if (max(series$date) < as.Date(prev$last_date)) {
+    return(sprintf("latest observation %s is older than the published %s",
+                   max(series$date), prev$last_date))
+  }
+  # Small drops are possible when a source revises or trims history; a big one
+  # means the fetch came back truncated.
+  if (nrow(series) < prev$n * 0.98) {
+    return(sprintf("%d observations, down from %d published", nrow(series), prev$n))
+  }
+  NULL
+}
+
 #-------------------------------------------
 # Fetch every indicator, collecting failures rather than stopping at the first
 #-------------------------------------------
@@ -147,7 +186,9 @@ for (i in seq_len(nrow(indicators))) {
   message("Fetching ", ind$name, " (", ind$symbol, ") from ", ind$source, " ...")
 
   series <- tryCatch({
-    s <- if (ind$source == "fred") fetch_fred_series(ind$symbol) else fetch_yahoo_series(ind$symbol)
+    s <- with_retries(
+      if (ind$source == "fred") fetch_fred_series(ind$symbol) else fetch_yahoo_series(ind$symbol)
+    )
     if (ind$id == "inflation") s <- to_yoy(s)
     s
   }, error = function(e) {
@@ -171,14 +212,28 @@ for (i in seq_len(nrow(indicators))) {
     next
   }
 
+  # A fetch that comes back shorter than what is already published is broken,
+  # whatever the release calendar says.
+  regression <- check_against_published(ind$id, series)
+  if (!is.null(regression)) {
+    failures <- c(failures, paste0(ind$id, ": ", regression))
+    next
+  }
+
   stale_days <- as.numeric(Sys.Date() - max(series$date))
   allowed <- max_staleness_days[[ind$id]]
-  if (stale_days > allowed) {
+  if (stale_days > allowed * STALE_FAIL_MULTIPLIER) {
     failures <- c(failures, sprintf(
-      "%s: most recent observation is %s, %d days old (allowed: %d)",
-      ind$id, max(series$date), round(stale_days), allowed
+      "%s: most recent observation is %s, %d days old (hard limit: %d)",
+      ind$id, max(series$date), round(stale_days), allowed * STALE_FAIL_MULTIPLIER
     ))
     next
+  } else if (stale_days > allowed) {
+    # ::warning:: surfaces as an annotation on the Actions run summary.
+    message(sprintf(
+      "::warning::%s: most recent observation is %s, %d days old (expected within %d)",
+      ind$id, max(series$date), round(stale_days), allowed
+    ))
   }
 
   series_list[[ind$id]] <- series
